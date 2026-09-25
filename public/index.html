@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ualyrics</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f5a524'/><text x='16' y='23' font-size='18' text-anchor='middle' font-family='Arial' font-weight='700' fill='%23111'>Я</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">Я→R</span> ualyrics</div>
+    <span class="hint" id="providers"></span>
+  </header>
+
+  <main>
+    <form id="search" class="search" autocomplete="off">
+      <label>
+        <span>Interpret</span>
+        <input id="artist" name="artist" placeholder="např. Кино nebo Kino" required maxlength="200">
+      </label>
+      <label>
+        <span>Název skladby</span>
+        <input id="title" name="title" placeholder="např. Кукушка nebo Kukushka" required maxlength="200">
+      </label>
+      <button id="go" type="submit">
+        <span class="label">Vyhledat a romanizovat</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+    </form>
+
+    <div id="message" class="message" hidden></div>
+
+    <section id="result" hidden>
+      <div class="song">
+        <div>
+          <h1 id="song-title"></h1>
+          <p id="song-artist"></p>
+        </div>
+        <div class="actions">
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-view="both">Vedle sebe</button>
+            <button type="button" class="tab" data-view="roman">Jen latinka</button>
+            <button type="button" class="tab" data-view="synced" id="tab-synced">Karaoke</button>
+          </div>
+          <button type="button" class="primary" id="copy">Kopírovat latinku</button>
+          <button type="button" class="ghost" id="copy-original">Kopírovat originál</button>
+        </div>
+      </div>
+
+      <div id="warnings"></div>
+
+      <div id="view-both" class="lyrics-grid">
+        <div class="col-head">Originál</div>
+        <div class="col-head">Romanizace</div>
+        <div id="grid-body" class="grid-body"></div>
+      </div>
+
+      <div id="view-roman" class="roman-only" hidden></div>
+
+      <div id="view-synced" class="synced" hidden>
+        <div class="player">
+          <button type="button" id="play" class="primary round" aria-label="Přehrát">▶</button>
+          <span id="time" class="time">0:00</span>
+          <input id="seek" type="range" min="0" max="0" value="0" step="100" aria-label="Posun v čase">
+          <span id="duration" class="time">0:00</span>
+        </div>
+        <p class="hint">Časování z LRCLIB. Spusť ve stejnou chvíli jako skladbu, nebo klikni na řádek.</p>
+        <div id="synced-lines" class="synced-lines"></div>
+      </div>
+
+      <dl class="stats" id="stats"></dl>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

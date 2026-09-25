@@ -1,0 +1,55 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from '../src/server.js';
+
+let server;
+let base;
+let lookups = 0;
+
+before(async () => {
+  server = createServer({
+    token: null,
+    lookup: async ({ artist, title }) => {
+      lookups++;
+      if (title === 'boom') throw new Error('kaput');
+      return { found: true, artist, title };
+    },
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => server.close());
+
+const post = (body) => fetch(`${base}/api/lyrics`, { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) });
+
+test('serves the UI and static assets', async () => {
+  const res = await fetch(`${base}/`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.equal((await fetch(`${base}/app.js`)).status, 200);
+});
+
+test('path traversal cannot read files outside public/', async () => {
+  for (const p of ['/../.env', '/%2e%2e/.env', '/..%2f.env', '/../package.json']) {
+    assert.notEqual((await fetch(`${base}${p}`)).status, 200, p);
+  }
+});
+
+test('lookup: validation, success, cache and upstream failure', async () => {
+  assert.equal((await post({ artist: '', title: 'x' })).status, 400);
+  assert.equal((await post('{nope')).status, 400);
+  assert.equal((await post({ artist: 'a'.repeat(201), title: 'x' })).status, 400);
+
+  const before = lookups;
+  const ok = await post({ artist: 'Кино', title: 'Ветер' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { found: true, artist: 'Кино', title: 'Ветер' });
+  await post({ artist: 'кино', title: 'ВЕТЕР' });
+  assert.equal(lookups - before, 1, 'second, case-different query is served from cache');
+
+  assert.equal((await post({ artist: 'x', title: 'boom' })).status, 502);
+});
+
+test('status endpoint reports Genius availability', async () => {
+  assert.deepEqual(await (await fetch(`${base}/api/status`)).json(), { genius: false });
+});
