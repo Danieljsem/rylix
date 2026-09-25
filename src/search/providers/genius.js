@@ -1,6 +1,6 @@
 // Genius — API for search (needs GENIUS_TOKEN), lyrics come from the song page.
 import { parseLyrics } from '../../parser/index.js';
-import { hasCyrillic } from '../../romanizer/index.js';
+import { isOriginalCyrillic } from '../../romanizer/index.js';
 import { extractGeniusLyrics } from '../../extractor/genius.js';
 import { matchScore, titlePrecision } from '../match.js';
 
@@ -51,6 +51,39 @@ async function findSong(fetchImpl, token, { artist, title }) {
   return null;
 }
 
+const ARTIST_SONG_PAGES = 4; // × 50 most popular songs
+
+// Fallback when "artist title" finds nothing (typical for Latin input like "Egor Kreed
+// Budilnik"): find the artist alone — Genius names Russian artists "Егор Крид (Egor Kreed)" —
+// then look the title up among the artist's most popular songs.
+async function findViaArtist(fetchImpl, token, { artist, title }) {
+  const { hits } = await api(fetchImpl, token, `/search?${new URLSearchParams({ q: artist })}`);
+  const artists = new Map();
+  for (const { type, result } of hits) {
+    const a = result.primary_artist;
+    if (type === 'song' && a && !GENIUS_META_ARTIST.test(a.name) && matchScore(artist, a.name) === 1) {
+      artists.set(a.id, a);
+    }
+  }
+
+  for (const artistId of artists.keys()) {
+    const pages = await Promise.all(
+      Array.from({ length: ARTIST_SONG_PAGES }, (_, i) =>
+        api(fetchImpl, token, `/artists/${artistId}/songs?sort=popularity&per_page=50&page=${i + 1}`)
+          .then((r) => r.songs ?? [])
+          .catch(() => [])),
+    );
+    const best = pages
+      .flat()
+      .filter((s) => s.primary_artist?.id === artistId)
+      .map((s) => ({ s, score: matchScore(title, s.title), precision: titlePrecision(title, s.title) }))
+      .filter(({ score }) => score === 1)
+      .sort((a, b) => b.precision - a.precision)[0];
+    if (best) return best.s;
+  }
+  return null;
+}
+
 // `queries` — spellings to try in order (as typed, Cyrillic guess, names from other providers).
 export async function searchGenius(queries, { fetch: fetchImpl = fetch, token } = {}) {
   if (!token) return [];
@@ -60,12 +93,16 @@ export async function searchGenius(queries, { fetch: fetchImpl = fetch, token } 
     song = await findSong(fetchImpl, token, q);
     if (song) break;
   }
+  for (const q of song ? [] : queries) {
+    song = await findViaArtist(fetchImpl, token, q);
+    if (song) break;
+  }
   if (!song) return [];
 
   const page = await fetchImpl(song.url, { headers: PAGE_HEADERS });
   if (!page.ok) throw new Error(`Genius page HTTP ${page.status}`);
   const text = extractGeniusLyrics(await page.text());
-  if (!text || !hasCyrillic(text)) return [];
+  if (!text || !isOriginalCyrillic(text)) return [];
 
   return [{
     artist: song.primary_artist?.name ?? queries[0].artist,

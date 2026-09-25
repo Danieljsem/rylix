@@ -2,16 +2,18 @@ import { searchLrclib } from './providers/lrclib.js';
 import { searchGenius } from './providers/genius.js';
 import { latinToCyrillic, hasLatin, stripParenthetical } from './reverse.js';
 import { titlePrecision } from './match.js';
-import { alignLines, flattenLines } from '../validator/index.js';
+import { wordAgreement, flattenLines } from '../validator/index.js';
 
-// Spellings of the query to try: as typed, then a Cyrillic guess if typed in Latin.
+// Spellings of the query to try: as typed, then Cyrillic guesses if typed in Latin.
+// A leading "E" is ambiguous (Егор vs. Это), so both readings are tried.
 export function queryVariants({ artist, title }) {
   const variants = [{ artist, title }];
   if (hasLatin(artist) || hasLatin(title)) {
-    variants.push({
-      artist: hasLatin(artist) ? latinToCyrillic(artist) : artist,
-      title: hasLatin(title) ? latinToCyrillic(title) : title,
-    });
+    for (const initialE of ['е', 'э']) {
+      const guess = (s) => (hasLatin(s) ? latinToCyrillic(s, { initialE }) : s);
+      const v = { artist: guess(artist), title: guess(title) };
+      if (!variants.some((x) => x.artist === v.artist && x.title === v.title)) variants.push(v);
+    }
   }
   return variants;
 }
@@ -22,7 +24,7 @@ const namesOf = (candidates) =>
 const lineTexts = (c) => flattenLines(c).map((l) => l.text);
 
 // Two sources found the same song if their texts agree at least half-way.
-export const sameSong = (a, b) => alignLines(lineTexts(a), lineTexts(b)).agreement >= 0.5;
+export const sameSong = (a, b) => wordAgreement(lineTexts(a), lineTexts(b)) >= 0.5;
 
 // Order matters: each provider can hand the exact (usually Cyrillic) names it found
 // to the next one. One failing provider never stops the others.

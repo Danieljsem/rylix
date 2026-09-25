@@ -1,6 +1,6 @@
 // LRCLIB (https://lrclib.net) — free, no API key; plain and time-synced lyrics.
 import { parseLyrics, parseLrc } from '../../parser/index.js';
-import { hasCyrillic } from '../../romanizer/index.js';
+import { isOriginalCyrillic } from '../../romanizer/index.js';
 import { matchScore, titlePrecision } from '../match.js';
 
 const API = 'https://lrclib.net/api';
@@ -14,7 +14,7 @@ async function getJson(fetchImpl, params) {
 
 function pickBest(results, { artist, title }) {
   return results
-    .filter((r) => !r.instrumental && r.plainLyrics && hasCyrillic(r.plainLyrics))
+    .filter((r) => !r.instrumental && r.plainLyrics && isOriginalCyrillic(r.plainLyrics))
     .map((r) => ({
       r,
       score: Math.min(matchScore(artist, r.artistName), matchScore(title, r.trackName)),

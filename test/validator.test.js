@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normalizeLine, alignLines, restoreYo, chooseBase, compareVersions,
-  confidenceLevel, validateRomanization,
+  confidenceLevel, validateRomanization, wordAgreement,
 } from '../src/validator/index.js';
 import { romanizeLyrics } from '../src/romanizer/index.js';
 
@@ -116,4 +116,20 @@ test('compareVersions: reflowed lines are not uncertain and keep base line break
   const { structure, uncertain } = compareVersions(base, [other]);
   assert.deepEqual(uncertain, []);
   assert.deepEqual(structure.sections[0].lines, ['Раз два,', 'три четыре', 'Пять']);
+});
+
+test('wordAgreement ignores line breaks and backing vocals in parentheses', () => {
+  const a = ['Раз два (два!)', 'три четыре', 'Пять'];
+  const b = ['Раз два три', 'четыре пять'];
+  assert.equal(wordAgreement(a, b), 1);
+  assert.equal(wordAgreement(['Раз два'], ['Совсем другое']), 0);
+});
+
+test('compareVersions: a line differing only by (backing vocals) is not uncertain', () => {
+  const base = { sections: [s('Припев', 'Пой со мной (со мной)', 'Конец')] };
+  const other = { sections: [s(null, 'Пой со мной', 'Конец')] };
+  const { uncertain, agreements, structure } = compareVersions(base, [other]);
+  assert.deepEqual(uncertain, []);
+  assert.equal(agreements[0], 1);
+  assert.equal(structure.sections[0].lines[0], 'Пой со мной (со мной)', 'base text kept as is');
 });

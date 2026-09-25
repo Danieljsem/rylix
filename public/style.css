@@ -58,14 +58,7 @@ body {
   z-index: 10;
 }
 .brand { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 10px; }
-.logo {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-radius: 8px;
-  padding: 2px 8px;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-}
+.logo { width: 28px; height: 28px; display: block; }
 .hint { color: var(--muted); font-size: 13px; }
 
 main {

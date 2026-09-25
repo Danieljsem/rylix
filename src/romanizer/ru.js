@@ -59,3 +59,13 @@ export function romanizeLine(line) {
 }
 
 export const hasCyrillic = (text) => /[а-яё]/i.test(text);
+
+// Share of Cyrillic among all letters (0–1). Used to tell original lyrics from
+// already romanized ones, which some sources store under the same song.
+export function cyrillicShare(text) {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (letters.length === 0) return 0;
+  return letters.filter((ch) => /[а-яё]/i.test(ch)).length / letters.length;
+}
+
+export const isOriginalCyrillic = (text) => cyrillicShare(text) >= 0.8;

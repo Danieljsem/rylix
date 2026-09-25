@@ -11,6 +11,22 @@ export function normalizeLine(line) {
     .trim();
 }
 
+// Key used to pair lines: ignores "(backing vocals)", which sources often include or
+// drop, unless the whole line is in parentheses.
+export function lineKey(line) {
+  return normalizeLine(line.replace(/\([^)]*\)/g, ' ')) || normalizeLine(line);
+}
+
+// Word-level agreement 0–1 (Dice coefficient over the LCS of all words).
+// Independent of how the words are broken into lines.
+export function wordAgreement(aLines, bLines) {
+  const words = (lines) => lines.flatMap((l) => lineKey(l).split(' ').filter(Boolean));
+  const a = words(aLines);
+  const b = words(bLines);
+  const total = a.length + b.length;
+  return total === 0 ? 1 : (2 * lcsPairs(a, b).length) / total;
+}
+
 // Returns matched index pairs [[i, j], …] in order.
 export function lcsPairs(a, b) {
   const n = a.length;
@@ -44,8 +60,8 @@ export function lcsPairs(a, b) {
 //  gaps       [{ base: [indices], other: [indices] }] unmatched stretches between matches
 //  reflows    gaps where the same words are only broken into lines differently
 export function alignLines(baseLines, otherLines) {
-  const a = baseLines.map(normalizeLine);
-  const b = otherLines.map(normalizeLine);
+  const a = baseLines.map(lineKey);
+  const b = otherLines.map(lineKey);
   const pairs = lcsPairs(a, b);
 
   const matches = new Map(pairs);

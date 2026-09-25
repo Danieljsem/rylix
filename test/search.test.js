@@ -52,7 +52,11 @@ test('latinToCyrillic handles English- and Czech-style input', () => {
 
 test('queryVariants adds a Cyrillic guess only for Latin input', () => {
   assert.deepEqual(queryVariants({ artist: 'Кино', title: 'Ветер' }), [{ artist: 'Кино', title: 'Ветер' }]);
-  assert.deepEqual(queryVariants({ artist: 'Kino', title: 'Veter' })[1], { artist: 'кино', title: 'ветер' });
+  assert.deepEqual(queryVariants({ artist: 'Kino', title: 'Veter' }).slice(1), [{ artist: 'кино', title: 'ветер' }]);
+  assert.deepEqual(queryVariants({ artist: 'Egor Krid', title: 'Eto' }).slice(1), [
+    { artist: 'егор крид', title: 'ето' },
+    { artist: 'эгор крид', title: 'это' },
+  ]);
 });
 
 test('matchScore compares across scripts; titlePrecision prefers exact titles', () => {

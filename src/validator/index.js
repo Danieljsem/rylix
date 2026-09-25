@@ -1,6 +1,6 @@
-import { alignLines } from './diff.js';
+import { alignLines, wordAgreement } from './diff.js';
 
-export { normalizeLine, alignLines } from './diff.js';
+export { normalizeLine, lineKey, alignLines, wordAgreement } from './diff.js';
 
 // Flat list of lines with their position in the section structure.
 export function flattenLines({ sections }) {
@@ -23,7 +23,7 @@ export function chooseBase(candidates) {
   const lines = candidates.map((c) => flattenLines(c).map((l) => l.text));
   const avgAgreement = lines.map((a, i) => {
     const others = lines.filter((_, j) => j !== i);
-    return others.reduce((sum, b) => sum + alignLines(a, b).agreement, 0) / others.length;
+    return others.reduce((sum, b) => sum + wordAgreement(a, b), 0) / others.length;
   });
   const hasHeaders = (c) => c.sections.some((s) => s.name !== null);
 
@@ -47,7 +47,8 @@ export function compareVersions(base, others) {
 
   for (const other of others) {
     const otherTexts = flattenLines(other).map((l) => l.text);
-    const { agreement, matches, gaps } = alignLines(baseTexts, otherTexts);
+    const { matches, gaps } = alignLines(baseTexts, otherTexts);
+    const agreement = wordAgreement(baseTexts, otherTexts);
     agreements.push(agreement);
 
     for (const [i, j] of matches) restored[i] = restoreYo(restored[i], otherTexts[j]);

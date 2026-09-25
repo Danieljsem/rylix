@@ -81,3 +81,11 @@ test('hasCyrillic', () => {
   assert.equal(hasCyrillic('hello'), false);
   assert.equal(hasCyrillic('hello мир'), true);
 });
+
+test('cyrillicShare tells original lyrics from romanized ones', async () => {
+  const { cyrillicShare, isOriginalCyrillic } = await import('../src/romanizer/index.js');
+  assert.equal(cyrillicShare('Пой со мной'), 1);
+  assert.equal(isOriginalCyrillic('Poy so mnoy\nPoy so mnoy\n[Припев]'), false);
+  assert.equal(isOriginalCyrillic('Пой со мной всю ночь, baby'), true);
+  assert.equal(cyrillicShare('123 !!!'), 0);
+});

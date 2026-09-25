@@ -28,6 +28,9 @@ Do té doby běží v prohlížeči (lokální Node server + webové UI).
 | D11 | **Dotaz v latince se zkusí i v azbuce** (`search/reverse.js`) | Zdroje mají názvy v azbuce. Převod latinka→azbuka (anglický i český styl: `zh`/`ž`, `ya`/`ja`) slouží **jen pro vyhledávání**, nikdy se nezobrazuje jako text. |
 | D12 | **Zdroje si předávají přesné názvy** | LRCLIB → Genius → (znovu LRCLIB). Stránky „Genius Romanizations“ se nestahují, ale přes vazbu `translation_of` se dohledá originál. |
 | D13 | **Jiná skladba se pozná podle textu** | Shoda textů < 50 % = různé skladby (např. dvě písně se slovem „осень“). Ponechá se ta s přesnějším názvem, druhá se zobrazí jako „nepoužito“. |
+| D15 | **Hledání přes interpreta** | Když „interpret + název“ nic nenajde (typicky latinka: „egor kreed budilnik“), najde se interpret (Genius uvádí „Егор Крид (Egor Kreed)“) a název se hledá mezi jeho 200 nejpopulárnějšími skladbami. Názvy se porovnávají tolerantně k přepisu (kreed = krid, č = ch) a drobným překlepům. |
+| D16 | **Originál = aspoň 80 % azbuky** | Některé záznamy v LRCLIB jsou pod ruským názvem už přepsané do latinky. Takové se přeskočí. |
+| D17 | **Shoda zdrojů se počítá po slovech** | Nezávisí na zalomení řádků a ignoruje doprovodné vokály v závorkách. Nejisté řádky se dál značí po řádcích. |
 | D14 | **Jiné zalomení řádků není rozdíl** | Genius a LRCLIB občas dělí stejná slova do řádků jinak. Validator to pozná (`reflows`) a nepočítá to jako neshodu; zobrazí se zalomení základního zdroje. |
 
 ---
@@ -254,7 +257,7 @@ Z terminálu:
 
 ```bash
 npm install
-npm test          # 51 testů, bez sítě
+npm test          # 54 testů, bez sítě
 npm start         # http://127.0.0.1:3000
 ```
 

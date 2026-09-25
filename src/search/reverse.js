@@ -5,6 +5,8 @@
 const MULTI = [
   ['shch', 'щ'], ['sch', 'щ'], ['zh', 'ж'], ['kh', 'х'], ['ts', 'ц'], ['ch', 'ч'], ['sh', 'ш'],
   ['yu', 'ю'], ['ya', 'я'], ['yo', 'ё'], ['ye', 'е'], ['ju', 'ю'], ['ja', 'я'], ['jo', 'ё'], ['je', 'е'],
+  // English-style spellings of Russian names: Kreed → Крид, Boogie → Буги.
+  ['ee', 'и'], ['oo', 'у'], ['ck', 'к'],
 ];
 const SINGLE = {
   a: 'а', b: 'б', c: 'ц', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'и', j: 'й', k: 'к', l: 'л',
@@ -14,7 +16,7 @@ const SINGLE = {
 const CYR_VOWELS = new Set('аеёиоуыэюя');
 const isLatinLetter = (ch) => ch !== undefined && /[a-zčšžř]/.test(ch);
 
-export function latinToCyrillic(text) {
+export function latinToCyrillic(text, { initialE = 'э' } = {}) {
   // Keep č š ž ř (they map to letters); strip other accents (á → a, ě → e).
   const src = text
     .toLowerCase()
@@ -32,7 +34,7 @@ export function latinToCyrillic(text) {
     }
     const ch = src[i];
     if (ch === 'e' && wordStart) {
-      out += 'э';
+      out += initialE;
     } else if (ch === 'y') {
       // "moy", "kray" → й after a vowel; "my", "novyy" → ы after a consonant.
       const prev = out[out.length - 1];
