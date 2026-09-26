@@ -127,3 +127,35 @@ test('romanizeLyrics leaves other languages untouched', async () => {
   const s = { sections: [{ name: 'Refrén', lines: ['Ranní vítr', 'Ranní vítr'] }] };
   assert.deepEqual(romanizeLyrics(s, 'other'), s);
 });
+
+test('lineLanguage: щ is Ukrainian too; и + ы is Russian; neutral lines → null', async () => {
+  const { lineLanguage } = await import('../src/romanizer/index.js');
+  assert.equal(lineLanguage('Ще не вечір'), 'uk');
+  assert.equal(lineLanguage('Мы идём домой'), 'ru');
+  assert.equal(lineLanguage('Съезд'), 'ru');
+  assert.equal(lineLanguage('Воўк'), 'be');
+  assert.equal(lineLanguage('Ля-ля-ля'), null);
+  assert.equal(lineLanguage('Ранок'), null);
+});
+
+test('detectLanguage: majority of lines decides, one borrowed word does not flip a song', async () => {
+  const { detectLanguage } = await import('../src/romanizer/index.js');
+  const russianWithOneUkrainianWord = ['Мы идём домой', 'Тихий вечер, ты рядом', 'Ещё один день', 'Привіт'].join('\n');
+  assert.equal(detectLanguage(russianWithOneUkrainianWord), 'ru');
+  const ukrainian = ['Ще не вечір', 'Мрія їде додому', 'Ми разом', 'Привіт'].join('\n');
+  assert.equal(detectLanguage(ukrainian), 'uk');
+});
+
+test('mixed song: each line romanized by its own language', async () => {
+  const { romanizeLyrics } = await import('../src/romanizer/index.js');
+  const song = { sections: [{ name: null, lines: ['Мы идём домой', 'Гей, ще не вечір', 'Гора'] }] };
+  const out = romanizeLyrics(song, 'ru');
+  // Russian line: и → i, ы → y; Ukrainian line: г → h, щ → shch; neutral line: song language (ru: г → g)
+  assert.deepEqual(out.sections[0].lines, ['My idyom domoy', 'Hei, shche ne vechir', 'Gora']);
+});
+
+test('a line with only "і" stays Belarusian inside a Belarusian song', async () => {
+  const { romanizeMixed } = await import('../src/romanizer/index.js');
+  assert.equal(romanizeMixed('Сінь і соль', 'be'), "Sin' i sol'");
+  assert.equal(romanizeMixed('Сінь і сіль', 'uk'), 'Sin i sil');
+});

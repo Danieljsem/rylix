@@ -118,19 +118,42 @@ export function cyrillicShare(text) {
 
 export const isOriginalCyrillic = (text) => cyrillicShare(text) >= 0.8;
 
+// Language of one line from letters only one language uses, or null if the line
+// has none of them (then the song's language applies).
+//   uk: ї є ґ, or і without ы/э      be: ў, or і together with ы/э
+//   ru: ъ, or ы/э together with и (Belarusian has no и, Ukrainian no ы/э)
+export function lineLanguage(line) {
+  const count = (re) => (line.match(re) ?? []).length;
+  if (count(/ў/gi)) return 'be';
+  if (count(/[їєґ]/gi)) return 'uk';
+  const i = count(/і/gi);
+  const yE = count(/[ыэ]/gi);
+  if (i && !yE) return 'uk';
+  if (i && yE) return 'be';
+  if (count(/ъ/gi)) return 'ru';
+  if (yE && count(/и/gi)) return 'ru';
+  return null;
+}
+
 // 'ru' | 'uk' | 'be' for Cyrillic lyrics, 'other' for anything else (Czech, English, …),
-// which is shown as is, without romanization.
+// which is shown as is. The song's language is the one most of its lines show,
+// so a single borrowed word never flips a whole song.
 export function detectLanguage(text) {
   if (cyrillicShare(text) < 0.3) return 'other';
-  const count = (re) => (text.match(re) ?? []).length;
-  const ukOnly = count(/[їєґ]/gi);
-  const beOnly = count(/ў/gi);
-  const iLetter = count(/і/gi);
-  const ruBe = count(/[ыэ]/gi);
-  const ruOnly = count(/[ъщ]/gi);
-  if (beOnly > 0) return 'be';
-  if (ukOnly > 0) return 'uk';
-  if (iLetter > 0 && ruBe === 0) return 'uk';
-  if (iLetter > 0 && ruOnly === 0) return 'be';
-  return 'ru';
+  const votes = { ru: 0, uk: 0, be: 0 };
+  for (const line of text.split(/\r?\n/)) {
+    const lang = lineLanguage(line);
+    if (lang) votes[lang]++;
+  }
+  const [best, n] = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
+  return n > 0 ? best : 'ru';
+}
+
+// Romanizes a line with its own language when it shows one (mixed ru/uk songs),
+// otherwise with the song's language.
+export function romanizeMixed(line, songLang) {
+  let lang = lineLanguage(line) ?? songLang;
+  // "і" alone fits Ukrainian and Belarusian alike: in a Belarusian song, stay Belarusian.
+  if (lang === 'uk' && songLang === 'be' && !/[їєґ]/i.test(line)) lang = 'be';
+  return romanizeLine(line, lang);
 }

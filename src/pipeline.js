@@ -1,5 +1,5 @@
 import { searchAll } from './search/index.js';
-import { romanizeLyrics, romanizeLine, detectLanguage, needsRomanization } from './romanizer/index.js';
+import { romanizeLyrics, romanizeMixed, detectLanguage, needsRomanization } from './romanizer/index.js';
 import { chooseBase, compareVersions, confidenceLevel, validateRomanization } from './validator/index.js';
 import { formatLyrics } from './formatter/index.js';
 
@@ -17,7 +17,7 @@ export async function lookupLyrics({ artist, title }, options = {}) {
   // Russian, Ukrainian, Belarusian → Latin; any other language is shown as is.
   const language = detectLanguage(formatLyrics(original));
   const romanize = needsRomanization(language);
-  const toLatin = (s) => (romanize ? romanizeLine(s, language) : s);
+  const toLatin = (s) => (romanize ? romanizeMixed(s, language) : s);
   const romanized = romanizeLyrics(original, language);
   const validation = validateRomanization(original, romanized);
   const providers = new Set(candidates.map((c) => c.source.provider));
