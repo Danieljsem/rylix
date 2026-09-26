@@ -650,14 +650,6 @@ html, body { overflow-x: clip; }
   .pl-buttons { gap: 12px; }
 }
 
-/* ---------- Rylix cursor (build/make-cursor.mjs; hotspot = arrow tip) ---------- */
-html, body, button, a, summary, [role="tab"], .lib-item, .lyrics.synced .line, input[type="range"] {
-  cursor: url("icons/cursor-32.png") 1 1, auto;
-  cursor: -webkit-image-set(url("icons/cursor-32.png") 1x, url("icons/cursor-64.png") 2x) 1 1, auto;
-}
-input:not([type="range"]), textarea { cursor: text; }
-button:disabled { cursor: url("icons/cursor-32.png") 1 1, not-allowed; }
-
 /* ---------- app scale control (like Spotify's zoom) ---------- */
 .zoom { display: inline-flex; align-items: center; height: 36px; border-radius: 999px; background: #1a1a1e; flex: none; }
 .zoom button { border: 0; background: transparent; color: var(--muted); height: 36px; font-weight: 800; }

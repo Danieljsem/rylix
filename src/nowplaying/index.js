@@ -109,12 +109,15 @@ export function createNowPlaying({ platform = process.platform, spawnImpl = spaw
       return present(latest);
     },
     // Play/pause, next, previous or seek in whatever is playing (media-key equivalent).
-    control(action, positionMs = 0) {
+    // `app` = the player the UI follows (from the snapshot), so a paused Spotify is not toggled
+    // while YouTube plays.
+    control(action, positionMs = 0, app = latest?.app ?? '') {
       if (platform !== 'win32' || !CONTROL_ACTIONS.includes(action)) return Promise.resolve(false);
       const pos = Math.max(0, Math.round(Number(positionMs) || 0));
+      const appId = String(app ?? '').replace(/[^\w.!\-]/g, '').slice(0, 200);
       return new Promise((resolve) => {
         execImpl('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CONTROL_SCRIPT,
-          '-Action', action, '-PositionMs', String(pos)], { windowsHide: true, timeout: 8000 },
+          '-Action', action, '-PositionMs', String(pos), '-App', appId], { windowsHide: true, timeout: 8000 },
         (err, stdout) => resolve(!err && String(stdout).trim() === 'true'));
       });
     },

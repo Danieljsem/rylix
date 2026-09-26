@@ -22,10 +22,15 @@ function Now-Ms { [DateTimeOffset]::Now.ToUnixTimeMilliseconds() }
 
 while ($true) {
   try {
-    $session = $mgr.GetCurrentSession()
-    if (-not $session) {
-      $session = @($mgr.GetSessions()) | Where-Object { "$($_.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing' } | Select-Object -First 1
-    }
+    # Whatever is actually playing wins (a paused Spotify must not hide YouTube in a browser);
+    # Windows' own "current" session only breaks ties or stands in when nothing plays.
+    $sessions = @($mgr.GetSessions())
+    $current = $mgr.GetCurrentSession()
+    $playing = @($sessions | Where-Object { "$($_.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing' })
+    if ($current -and "$($current.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing') { $session = $current }
+    elseif ($playing.Count -gt 0) { $session = $playing[0] }
+    elseif ($current) { $session = $current }
+    else { $session = $sessions | Select-Object -First 1 }
     if ($session) {
       $p = Await ($session.TryGetMediaPropertiesAsync()) ($Props)
       $tl = $session.GetTimelineProperties()

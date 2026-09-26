@@ -73,7 +73,9 @@ test('control: only known actions, Windows only, position sanitized', async () =
   assert.equal(await np.control('seek', '12345.6'), true);
   assert.equal(await np.control('rm -rf'), false);
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[1].slice(-4), ['-Action', 'seek', '-PositionMs', '12346']);
+  assert.deepEqual(calls[1].slice(-6, -2), ['-Action', 'seek', '-PositionMs', '12346']);
+  await np.control('toggle', 0, 'MSEdge; rm -rf "x"');
+  assert.equal(calls.at(-1).at(-1), 'MSEdgerm-rfx', 'app id is sanitized (no spaces, quotes or ;)');
   const linux = createNowPlaying({ platform: 'linux' });
   assert.equal(await linux.control('toggle'), false);
 });

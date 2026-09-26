@@ -2,7 +2,8 @@
 # the same thing the media keys / volume flyout do. Prints "true" or "false".
 param(
   [Parameter(Mandatory = $true)][ValidateSet('toggle', 'next', 'prev', 'seek')][string]$Action,
-  [long]$PositionMs = 0
+  [long]$PositionMs = 0,
+  [string]$App = ''
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -17,7 +18,12 @@ function Await($op, [Type]$type) {
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
 $Manager = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]
 $mgr = Await ($Manager::RequestAsync()) ($Manager)
-$s = $mgr.GetCurrentSession()
+# Control the player the UI is synced with (by app id); otherwise the one that is playing.
+$sessions = @($mgr.GetSessions())
+$s = $null
+if ($App) { $s = $sessions | Where-Object { $_.SourceAppUserModelId -eq $App } | Select-Object -First 1 }
+if (-not $s) { $s = $sessions | Where-Object { "$($_.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing' } | Select-Object -First 1 }
+if (-not $s) { $s = $mgr.GetCurrentSession() }
 if (-not $s) { [Console]::Out.WriteLine('false'); exit 0 }
 switch ($Action) {
   'toggle' { $ok = Await ($s.TryTogglePlayPauseAsync()) ([bool]) }
