@@ -18,6 +18,8 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 };
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_FIELD = 200;
@@ -94,8 +96,25 @@ export function createServer({
   const inFlight = new Map(); // same query asked twice at once → one lookup
 
   async function handleLibrary(req, res) {
-    const id = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice('/api/library'.length).replace(/^\//, ''));
+    const rest = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice('/api/library'.length).replace(/^\//, ''));
+    const [id, sub] = rest.split('/');
     try {
+      if (req.method === 'GET' && id && sub === 'cover') {
+        const cover = await library.cover(id);
+        if (!cover) return send(res, 404, { error: 'no cover' });
+        res.writeHead(200, { 'Content-Type': cover.type, 'Cache-Control': 'max-age=86400' });
+        return res.end(cover.body);
+      }
+      if (req.method === 'PATCH' && id && !sub) {
+        let body;
+        try {
+          body = await readJson(req);
+        } catch {
+          return send(res, 400, { error: 'Neplatný požadavek.' });
+        }
+        const updated = await library.update(id, { offsetMs: Number(body.offsetMs) });
+        return updated ? send(res, 200, updated) : send(res, 404, { error: 'not found' });
+      }
       if (req.method === 'GET' && !id) return send(res, 200, { entries: await library.list() });
       if (req.method === 'GET') {
         const entry = await library.get(id);
@@ -115,7 +134,20 @@ export function createServer({
         if (!result?.found || !result.original?.sections || !result.romanized?.sections) {
           return send(res, 400, { error: 'Chybí text k uložení.' });
         }
-        return send(res, 200, await library.save(result, { queries: queries.slice(0, 10) }));
+        // Keep the cover too, so the saved song looks the same offline.
+        let cover = null;
+        if (isAllowedArtUrl(result.art)) {
+          try {
+            cover = artCache.get(result.art);
+            if (!cover) {
+              const upstream = await fetchArt(result.art);
+              const type = upstream.headers.get('content-type') ?? '';
+              const body = Buffer.from(await upstream.arrayBuffer());
+              if (upstream.ok && type.startsWith('image/') && body.length <= MAX_ART_BYTES) cover = { type, body };
+            }
+          } catch { /* offline or gone: saved without a cover */ }
+        }
+        return send(res, 200, await library.save(result, { queries: queries.slice(0, 10), cover }));
       }
       send(res, 405, { error: 'method not allowed' });
     } catch (err) {

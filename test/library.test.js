@@ -39,6 +39,7 @@ test('save → list → get → findByQuery → remove, persisted to disk', asyn
   assert.equal(first.id, saved.id);
   const full = await reopened.get(saved.id);
   assert.deepEqual(full.romanized, RESULT.romanized);
+  assert.deepEqual(full.synced, RESULT.synced, 'timing is saved with the song');
   assert.equal(full.autoKey, undefined, 'session-only fields are not stored');
 
   assert.equal((await reopened.findByQuery({ artist: 'testovaya gruppa', title: 'veter' })).id, saved.id);
@@ -87,4 +88,58 @@ test('server: saved song is served from the library instead of searching', async
   await json('POST', '/api/lyrics', { artist: 'tg', title: 'wind' });
   assert.equal(lookups, 1);
   server.close();
+});
+
+test('cover and timing offset are kept for offline use; removing deletes the cover', async () => {
+  const file = await tempFile();
+  const lib = createLibrary({ file });
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+  const saved = await lib.save({ ...RESULT, art: 'https://images.genius.com/x.png' }, { cover: { type: 'image/png', body: png } });
+  assert.equal(saved.artLocal, true);
+  assert.deepEqual((await lib.cover(saved.id)).body, png);
+
+  assert.equal((await lib.update(saved.id, { offsetMs: 1500 })).offsetMs, 1500);
+  assert.equal((await createLibrary({ file }).get(saved.id)).offsetMs, 1500, 'persisted');
+
+  await lib.save({ ...RESULT }, {});
+  assert.equal((await lib.list())[0].artLocal, true, 're-saving without a cover keeps the old one');
+
+  await lib.remove(saved.id);
+  assert.equal(await lib.cover(saved.id), null);
+});
+
+test('server offline: saved song (with timing and cover) works without any network', async () => {
+  const file = await tempFile();
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 9, 9]);
+  const online = createServer({
+    token: null,
+    nowPlaying: { get: () => ({ available: false }) },
+    library: createLibrary({ file }),
+    fetchArt: async () => ({ ok: true, headers: new Headers({ 'content-type': 'image/png' }), arrayBuffer: async () => png }),
+  });
+  await new Promise((r) => online.listen(0, '127.0.0.1', r));
+  let base = `http://127.0.0.1:${online.address().port}`;
+  const [, saved] = await fetch(`${base}/api/library`, { method: 'POST', body: JSON.stringify({
+    result: { ...RESULT, art: 'https://images.genius.com/x.png' }, queries: [{ artist: 'TG', title: 'Wind' }],
+  }) }).then(async (r) => [r.status, await r.json()]);
+  online.close();
+
+  // Everything that needs the internet now throws.
+  const offline = createServer({
+    token: null,
+    nowPlaying: { get: () => ({ available: false }) },
+    library: createLibrary({ file }),
+    lookup: async () => { throw new Error('offline'); },
+    fetchArt: async () => { throw new Error('offline'); },
+  });
+  await new Promise((r) => offline.listen(0, '127.0.0.1', r));
+  base = `http://127.0.0.1:${offline.address().port}`;
+  const song = await (await fetch(`${base}/api/lyrics`, { method: 'POST', body: JSON.stringify({ artist: 'TG', title: 'Wind' }) })).json();
+  assert.equal(song.fromLibrary, true);
+  assert.deepEqual(song.synced, RESULT.synced);
+  const cover = await fetch(`${base}/api/library/${saved.id}/cover`);
+  assert.equal(cover.status, 200);
+  assert.deepEqual(Buffer.from(await cover.arrayBuffer()), png);
+  assert.equal((await fetch(`${base}/api/library/${saved.id}`, { method: 'PATCH', body: JSON.stringify({ offsetMs: -500 }) })).status, 200);
+  offline.close();
 });

@@ -202,6 +202,12 @@ function colorFromImage(img) {
   return { hue, sat };
 }
 
+// Saved songs use their stored cover (works offline); others go through the art proxy.
+function artUrl(data) {
+  if (data.artLocal && data.id) return `/api/library/${encodeURIComponent(data.id)}/cover`;
+  return data.art ? `/api/art?u=${encodeURIComponent(data.art)}` : null;
+}
+
 function applyArtAndColor(data) {
   setSongColor(hashHue(`${data.artist} ${data.title}`), 22);
   els.art.hidden = true;
@@ -209,7 +215,8 @@ function applyArtAndColor(data) {
   els.plArt.hidden = true;
   els.plTitle.textContent = data.title;
   els.plArtist.textContent = data.artist;
-  if (!data.art) return;
+  const src = artUrl(data);
+  if (!src) return;
 
   const img = new Image();
   img.onload = () => {
@@ -226,7 +233,7 @@ function applyArtAndColor(data) {
       else setSongColor(212, 10);
     } catch { /* keep the fallback color */ }
   };
-  img.src = `/api/art?u=${encodeURIComponent(data.art)}`;
+  img.src = src;
 }
 
 // ---------- search ----------
@@ -346,7 +353,7 @@ els.approve.addEventListener('click', async () => {
     const res = await fetch('/api/library', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ result: current, queries: lastQuery ? [lastQuery] : [] }),
+      body: JSON.stringify({ result: { ...current, offsetMs: playback.offset }, queries: lastQuery ? [lastQuery] : [] }),
     });
     const saved = await res.json();
     if (!res.ok) throw new Error(saved.error || `HTTP ${res.status}`);
@@ -388,8 +395,9 @@ function renderLibrary() {
 
   els.libList.replaceChildren(...items.map((e) => {
     const li = el('li', { class: 'lib-item', dataset: { id: e.id }, title: `${e.title} — ${e.artist}` });
-    const thumb = e.art
-      ? el('img', { class: 'lib-thumb', src: `/api/art?u=${encodeURIComponent(e.art)}`, alt: '', loading: 'lazy' })
+    const thumbSrc = artUrl(e);
+    const thumb = thumbSrc
+      ? el('img', { class: 'lib-thumb', src: thumbSrc, alt: '', loading: 'lazy' })
       : el('div', { class: 'lib-thumb' }, '♪');
     const text = el('div', { class: 'lib-text' });
     const sub = el('div', { class: 'lib-sub' }, e.artist);
@@ -645,7 +653,9 @@ const savedOffsets = () => store.get('offsets', {});
 
 function setupPlayer(data) {
   setExternal(false);
-  playback.offset = savedOffsets()[offsetKey(data)] ?? 0;
+  playback.offset = data.fromLibrary && Number.isFinite(data.offsetMs)
+    ? data.offsetMs
+    : savedOffsets()[offsetKey(data)] ?? 0;
   if (!data.synced) return;
   playback.end = data.synced.at(-1).timeMs + 6000;
   els.seek.max = String(playback.end);
@@ -791,6 +801,18 @@ function shiftOffset(ms) {
   if (playback.offset === 0) delete offsets[offsetKey(current)];
   else offsets[offsetKey(current)] = playback.offset;
   store.set('offsets', offsets);
+  // A saved song keeps its correction in the library too (so it is there offline / after reinstall).
+  const saved = savedEntryFor(current);
+  if (saved) {
+    clearTimeout(shiftOffset.timer);
+    shiftOffset.timer = setTimeout(() => {
+      fetch(`/api/library/${encodeURIComponent(saved.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offsetMs: playback.offset }),
+      }).catch(() => {});
+    }, 400);
+  }
   updateOffsetLabel();
   playback.active = -2;
   update(now());

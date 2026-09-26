@@ -1,6 +1,6 @@
 // Approved lyrics saved on this PC (a JSON file; later Electron's userData folder).
 // Entries are whole lookup results, so a saved song opens instantly and offline.
-import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -14,10 +14,17 @@ export function entryId(result) {
   return createHash('sha1').update(basis).digest('hex').slice(0, 16);
 }
 
-const summary = ({ id, artist, title, art, savedAt, synced, confidence, source }) =>
-  ({ id, artist, title, art: art ?? null, savedAt, synced: Boolean(synced?.length), confidence, sourceUrl: source?.url ?? null });
+const summary = ({ id, artist, title, art, artLocal, savedAt, synced, confidence, source, offsetMs }) => ({
+  id, artist, title, art: art ?? null, artLocal: Boolean(artLocal), savedAt,
+  synced: Boolean(synced?.length), confidence, sourceUrl: source?.url ?? null, offsetMs: offsetMs ?? 0,
+});
+
+const COVER_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 export function createLibrary({ file }) {
+  // Covers are saved next to the library so saved songs look the same offline.
+  const coverDir = path.join(path.dirname(file), 'covers');
+  const coverPath = (id, type) => path.join(coverDir, `${id}.${COVER_TYPES[type] ?? 'img'}`);
   let entries = null;
   let writing = Promise.resolve();
 
@@ -57,7 +64,8 @@ export function createLibrary({ file }) {
     },
 
     // `queries` — the searches that led to this song, so the same search hits the library next time.
-    async save(result, { queries = [] } = {}) {
+    // `cover` — { type, body } of the cover image, stored for offline use.
+    async save(result, { queries = [], cover = null } = {}) {
       const list = await load();
       const id = entryId(result);
       const existing = list.find((e) => e.id === id);
@@ -71,17 +79,49 @@ export function createLibrary({ file }) {
         updatedAt: new Date().toISOString(),
       };
       delete entry.autoKey;
+      delete entry.recAnchor;
+      delete entry.fromLibrary;
+      if (cover?.body?.length && COVER_TYPES[cover.type]) {
+        await mkdir(coverDir, { recursive: true });
+        await writeFile(coverPath(id, cover.type), cover.body);
+        entry.artLocal = true;
+        entry.artType = cover.type;
+      } else if (existing?.artLocal) {
+        entry.artLocal = true;
+        entry.artType = existing.artType;
+      }
       if (existing) list[list.indexOf(existing)] = entry;
       else list.push(entry);
       await persist();
       return summary(entry);
     },
 
+    // Small edits on a saved song (currently the timing offset).
+    async update(id, { offsetMs }) {
+      const entry = (await load()).find((e) => e.id === id);
+      if (!entry) return null;
+      if (Number.isFinite(offsetMs)) entry.offsetMs = Math.max(-10000, Math.min(10000, Math.round(offsetMs)));
+      entry.updatedAt = new Date().toISOString();
+      await persist();
+      return summary(entry);
+    },
+
+    async cover(id) {
+      const entry = (await load()).find((e) => e.id === id);
+      if (!entry?.artLocal) return null;
+      try {
+        return { type: entry.artType, body: await readFile(coverPath(id, entry.artType)) };
+      } catch {
+        return null;
+      }
+    },
+
     async remove(id) {
       const list = await load();
       const i = list.findIndex((e) => e.id === id);
       if (i < 0) return false;
-      list.splice(i, 1);
+      const [entry] = list.splice(i, 1);
+      if (entry.artLocal) await rm(coverPath(id, entry.artType), { force: true });
       await persist();
       return true;
     },
