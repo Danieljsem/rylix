@@ -992,7 +992,7 @@ function setExternal(on, label = '') {
   els.syncSource.textContent = on ? `● Synchronizováno: ${label}` : '';
 }
 
-// ---------- layout: panels like Spotify (wide = both visible, medium = rail + drawer, narrow = drawers) ----------
+// ---------- layout: panels like Spotify (wide = side by side, each can be hidden; medium/narrow = drawers) ----------
 
 const layout = {
   libCollapsed: store.get('libCollapsed', false),

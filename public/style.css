@@ -546,24 +546,19 @@ body.no-player .layout { height: calc(100dvh / var(--zoom) - var(--topbar-h)); }
 .now-actions .approve-mini { display: none; }
 .approve-mini.saved { color: var(--accent); border-color: var(--accent); }
 
-/* wide: user can collapse the library to a rail and hide the details panel */
-body.lib-collapsed .layout { grid-template-columns: 72px minmax(0, 1fr) 320px; }
+/* wide: user can hide the library and the details panel completely */
+body.lib-collapsed .layout { grid-template-columns: minmax(0, 1fr) 320px; }
+body.lib-collapsed .sidebar.left { display: none; }
 body.details-hidden .layout { grid-template-columns: 280px minmax(0, 1fr); }
-body.lib-collapsed.details-hidden .layout { grid-template-columns: 72px minmax(0, 1fr); }
+body.lib-collapsed.details-hidden .layout { grid-template-columns: minmax(0, 1fr); }
 body.details-hidden .sidebar.right { display: none; }
 body.details-hidden .now-actions .approve-mini { display: inline-flex; }
 
-/* library rail: only covers */
-body.lib-collapsed .sidebar.left, body[data-mode="medium"]:not(.lib-open) .sidebar.left { padding: 12px 6px; align-items: center; }
-body.lib-collapsed .sidebar.left :is(.side-head, .side-filter, .side-empty, .lib-text, .lib-del),
-body[data-mode="medium"]:not(.lib-open) .sidebar.left :is(.side-head, .side-filter, .side-empty, .lib-text, .lib-del) { display: none; }
-body.lib-collapsed .lib-item, body[data-mode="medium"]:not(.lib-open) .lib-item { grid-template-columns: 48px; padding: 6px; }
-body.lib-collapsed .lib-thumb, body[data-mode="medium"]:not(.lib-open) .lib-thumb { width: 48px; height: 48px; }
 
 .backdrop { display: none; }
 
-/* medium (tablet / small window): library rail, details as a drawer */
-body[data-mode="medium"] .layout { grid-template-columns: 72px minmax(0, 1fr); }
+/* medium (tablet / small window): lyrics full width, library and details as drawers */
+body[data-mode="medium"] .layout { grid-template-columns: minmax(0, 1fr); }
 body[data-mode="medium"] .now-actions .approve-mini { display: inline-flex; }
 
 /* narrow (phone): lyrics only; both panels are drawers */
@@ -571,8 +566,7 @@ body[data-mode="narrow"] .layout { grid-template-columns: minmax(0, 1fr); }
 body[data-mode="narrow"] .now-actions .approve-mini { display: inline-flex; }
 
 body:is([data-mode="medium"], [data-mode="narrow"]) .sidebar.right,
-body[data-mode="narrow"] .sidebar.left,
-body[data-mode="medium"].lib-open .sidebar.left {
+body:is([data-mode="medium"], [data-mode="narrow"]) .sidebar.left {
   position: fixed;
   top: calc(var(--topbar-h) + 4px);
   bottom: calc(var(--player-h) + 8px);
@@ -584,8 +578,8 @@ body[data-mode="medium"].lib-open .sidebar.left {
 body.no-player:is([data-mode="medium"], [data-mode="narrow"]) :is(.sidebar.right, .sidebar.left) { bottom: 8px; }
 body:is([data-mode="medium"], [data-mode="narrow"]) .sidebar.right { right: 8px; transform: translateX(calc(100% + 16px)); }
 body:is([data-mode="medium"], [data-mode="narrow"]).details-open .sidebar.right { transform: none; }
-body[data-mode="narrow"] .sidebar.left { left: 8px; transform: translateX(calc(-100% - 16px)); }
-body[data-mode="narrow"].lib-open .sidebar.left, body[data-mode="medium"].lib-open .sidebar.left { left: 8px; transform: none; }
+body:is([data-mode="medium"], [data-mode="narrow"]) .sidebar.left { left: 8px; transform: translateX(calc(-100% - 16px)); }
+body:is([data-mode="medium"], [data-mode="narrow"]).lib-open .sidebar.left { transform: none; }
 body:is(.lib-open, .details-open):is([data-mode="medium"], [data-mode="narrow"]) .backdrop {
   display: block;
   position: fixed;
