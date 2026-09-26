@@ -36,6 +36,7 @@ const els = {
   offsetMinus: $('#offset-minus'),
   offsetPlus: $('#offset-plus'),
   toast: $('#toast'),
+  recognize: $('#recognize'),
   libList: $('#lib-list'),
   libFilter: $('#lib-filter'),
   libCount: $('#lib-count'),
@@ -740,6 +741,8 @@ els.resync.addEventListener('click', () => setFollow(true));
 
 // When synced with Spotify & co., the buttons control that player (like media keys).
 async function mediaControl(action, positionMs) {
+  const rec = current?.recAnchor;
+  if (action === 'seek' && rec) positionMs = rec.videoPos0 + (positionMs - rec.songPos0);
   try {
     const res = await fetch('/api/now-playing/control', {
       method: 'POST',
@@ -861,32 +864,111 @@ async function onNowPlaying(np) {
     setExternal(false);
     els.artist.value = track.query.artist;
     els.title.value = track.query.title;
+    let found = null;
     try {
-      await search(track.query.artist, track.query.title, { autoKey: key });
+      found = await search(track.query.artist, track.query.title, { autoKey: key });
     } finally {
       auto.busy = false;
     }
+    // A mix, radio or unnamed upload: listen to the sound instead.
+    if (!found && np.playing && recognition.available) recognizeNow({ auto: true });
     return;
   }
 
   // The loaded lyrics belong to the playing track → follow the real position.
   if (current?.autoKey === key && current.synced && prefs.view === 'lyrics') {
-    setExternal(true, appLabel(track.app));
-    if (track.durationMs > 0) {
-      playback.end = Math.max(track.durationMs, current.synced.at(-1).timeMs + 1000);
+    const rec = current.recAnchor;
+    // Recognized song inside a longer video: song position follows the video's position.
+    const songPos = rec ? rec.songPos0 + (np.positionMs - rec.videoPos0) : np.positionMs;
+    setExternal(true, rec ? `${appLabel(track.app)} (rozpoznáno)` : appLabel(track.app));
+    const duration = rec ? rec.durationMs : track.durationMs;
+    if (duration > 0) {
+      playback.end = Math.max(duration, current.synced.at(-1).timeMs + 1000);
       els.seek.max = String(playback.end);
       els.duration.textContent = fmtTime(playback.end);
     }
-    const drift = Math.abs(now() - np.positionMs);
+    // The recognized song is over (or the user skipped within the mix) → who plays now?
+    if (rec && np.playing && (songPos < -3000 || (rec.durationMs && songPos > rec.durationMs + 1500))) {
+      recognizeNow({ auto: true });
+      return;
+    }
+    const drift = Math.abs(now() - songPos);
     // Re-anchor on every update that is off by more than a few frames; tiny steps are invisible.
     if (drift > 60 || np.playing !== playback.playing) {
-      playback.position = np.positionMs;
+      playback.position = songPos;
       playback.startedAt = performance.now();
       playback.active = -2;
     }
     if (np.playing && !playback.playing) play();
     else if (!np.playing && playback.playing) pause();
-    if (!np.playing) update(np.positionMs);
+    if (!np.playing) update(songPos);
+  }
+}
+
+// ---------- song recognition from the PC's sound (desktop app + AudD) ----------
+
+const recognition = { available: false, busy: false, lastAt: 0 };
+const RECORD_MS = 8000;
+
+async function captureSystemAudio(ms) {
+  // In the desktop app this returns the PC's output sound (loopback) without a picker.
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  stream.getVideoTracks().forEach((t) => t.stop());
+  const tracks = stream.getAudioTracks();
+  if (tracks.length === 0) throw new Error('Nepodařilo se zachytit zvuk počítače');
+  const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 });
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  recorder.start();
+  await new Promise((r) => setTimeout(r, ms));
+  await new Promise((r) => { recorder.onstop = r; recorder.stop(); });
+  stream.getTracks().forEach((t) => t.stop());
+  return new Blob(chunks, { type: 'audio/webm' });
+}
+
+async function recognizeNow({ auto: isAuto = false } = {}) {
+  if (!recognition.available || recognition.busy) return;
+  // Auto mode: at most one try per 20 s (free requests are limited).
+  if (isAuto && Date.now() - recognition.lastAt < 20000) return;
+  recognition.busy = true;
+  recognition.lastAt = Date.now();
+  els.recognize.classList.add('listening');
+  toast('Poslouchám, co hraje…');
+  try {
+    // Where the player is when recording starts (maps song time ↔ video time later).
+    const before = await (await fetch('/api/now-playing')).json().catch(() => null);
+    const key = before?.track ? `${before.track.app}|${before.track.artist}|${before.track.title}` : null;
+    const videoPos0 = before?.positionMs ?? 0;
+
+    const audio = await captureSystemAudio(RECORD_MS);
+    const res = await fetch('/api/recognize', { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: audio });
+    const hit = await res.json();
+    if (!res.ok) throw new Error(hit.error || `HTTP ${res.status}`);
+    if (!hit.found) {
+      toast('Písničku se nepodařilo rozpoznat');
+      return;
+    }
+    els.artist.value = hit.artist;
+    els.title.value = hit.title;
+    const data = await search(hit.artist, hit.title, { autoKey: key });
+    if (!data) {
+      showMessage(`Hraje: ${hit.artist} – ${hit.title} (rozpoznáno). Text k ní jsem nenašel.`);
+      return;
+    }
+    toast(`Rozpoznáno: ${hit.artist} – ${hit.title}`);
+    if (hit.timecodeMs != null) {
+      data.recAnchor = { videoPos0, songPos0: hit.timecodeMs, durationMs: hit.durationMs };
+      // No media session (e.g. a game or stream): run on our own clock from the recording.
+      if (!key && data.synced) {
+        seekTo(hit.timecodeMs + RECORD_MS);
+        play();
+      }
+    }
+  } catch (err) {
+    toast(`Rozpoznání selhalo: ${err.message}`);
+  } finally {
+    recognition.busy = false;
+    els.recognize.classList.remove('listening');
   }
 }
 
@@ -1007,9 +1089,14 @@ setAuto(store.get('auto', true));
 applyZoom(store.get('zoom', null) ?? autoZoom());
 loadLibrary();
 
+if (window.rylix?.desktop) document.body.classList.add('desktop');
+els.recognize.addEventListener('click', () => recognizeNow());
+
 fetch('/api/status')
   .then((r) => r.json())
   .then((s) => {
+    recognition.available = Boolean(window.rylix?.desktop && s.recognition);
+    els.recognize.hidden = !recognition.available;
     els.providers.textContent = s.genius ? 'LRCLIB + Genius' : 'jen LRCLIB (chybí Genius token)';
   })
   .catch(() => {});

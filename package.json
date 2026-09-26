@@ -1,7 +1,7 @@
 {
   "name": "rylix",
   "version": "0.1.0",
-  "description": "Lyrics Romanizer — finds Russian lyrics and romanizes them line by line",
+  "description": "Rylix — lyrics, romanized line by line, synced with what plays on the PC",
   "type": "module",
   "private": true,
   "engines": {
@@ -9,9 +9,14 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "app": "electron ."
   },
   "dependencies": {
     "cheerio": "^1.2.0"
-  }
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  },
+  "main": "electron/main.js"
 }

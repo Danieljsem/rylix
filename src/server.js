@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { lookupLyrics } from './pipeline.js';
 import { createNowPlaying } from './nowplaying/index.js';
 import { createLibrary } from './library/index.js';
+import { recognizeAudd, MAX_AUDIO_BYTES } from './recognize/audd.js';
 
 const PUBLIC_DIR = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const LIBRARY_FILE = fileURLToPath(new URL('../data/library.json', import.meta.url));
@@ -85,6 +86,8 @@ export function createServer({
   fetchArt = (url) => fetch(url, { redirect: 'error' }),
   nowPlaying = createNowPlaying(),
   library = createLibrary({ file: LIBRARY_FILE }),
+  auddToken = process.env.AUDD_TOKEN,
+  recognize = (audio, mime) => recognizeAudd(audio, mime, { token: auddToken }),
 } = {}) {
   const cache = lru(300);
   const artCache = lru(150);
@@ -154,6 +157,25 @@ export function createServer({
     send(res, 200, { ok: await nowPlaying.control(body.action, body.positionMs) });
   }
 
+  // Body = raw audio (a few seconds recorded by the desktop app).
+  async function handleRecognize(req, res) {
+    if (!auddToken) return send(res, 503, { error: 'Rozpoznávání není nastavené (chybí AUDD_TOKEN).' });
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > MAX_AUDIO_BYTES) return send(res, 413, { error: 'Nahrávka je příliš velká.' });
+      chunks.push(chunk);
+    }
+    if (size < 1000) return send(res, 400, { error: 'Nahrávka je prázdná.' });
+    try {
+      send(res, 200, await recognize(Buffer.concat(chunks), req.headers['content-type']));
+    } catch (err) {
+      console.error('recognize failed:', err.message);
+      send(res, 502, { error: 'Rozpoznání selhalo.' });
+    }
+  }
+
   async function handleLookup(req, res) {
     let body;
     try {
@@ -201,8 +223,9 @@ export function createServer({
     if (req.method === 'GET' && req.url.startsWith('/api/art?')) return handleArt(req, res);
     if (req.method === 'GET' && req.url === '/api/now-playing') return send(res, 200, nowPlaying.get());
     if (req.method === 'POST' && req.url === '/api/now-playing/control') return handleControl(req, res);
+    if (req.method === 'POST' && req.url === '/api/recognize') return handleRecognize(req, res);
     if (req.method === 'GET' && req.url === '/api/status') {
-      return send(res, 200, { genius: Boolean(token) });
+      return send(res, 200, { genius: Boolean(token), recognition: Boolean(auddToken) });
     }
     if (req.method === 'GET') return serveStatic(req, res);
     send(res, 405, { error: 'method not allowed' });

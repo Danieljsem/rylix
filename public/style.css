@@ -656,3 +656,14 @@ html, body { overflow-x: clip; }
 .zoom button:hover { color: #fff; }
 .zoom-btn { width: 32px; font-size: 18px; line-height: 1; }
 .zoom-val { min-width: 50px; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---------- desktop app (Electron): draggable top bar, room for window buttons ---------- */
+body.desktop .topbar { -webkit-app-region: drag; padding-right: 150px; }
+body.desktop .topbar :is(button, input, form, .zoom, a) { -webkit-app-region: no-drag; }
+
+/* ---------- recognize (Shazam-like) ---------- */
+.recognize-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.recognize-btn.listening { border-color: var(--accent); color: var(--accent); }
+.recognize-btn.listening svg path { animation: eq 0.9s ease-in-out infinite; transform-origin: center; }
+.recognize-btn.listening svg path:nth-child(2n) { animation-delay: -0.45s; }
+@keyframes eq { 50% { transform: scaleY(0.4); } }

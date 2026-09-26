@@ -1,4 +1,5 @@
 # Creates "Rylix" on the desktop (and in the Start menu) with the app icon.
+# Opens the desktop app (Electron); launcher/rylix.ps1 remains as the browser-only fallback.
 $root = Split-Path -Parent $PSScriptRoot
 $shell = New-Object -ComObject WScript.Shell
 $targets = @(
@@ -7,12 +8,12 @@ $targets = @(
 )
 foreach ($path in $targets) {
   $lnk = $shell.CreateShortcut($path)
-  $lnk.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $lnk.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\launcher\rylix.ps1`""
+  $lnk.TargetPath = Join-Path $root 'node_modules\electron\dist\electron.exe'
+  $lnk.Arguments = "`"$root`""
   $lnk.WorkingDirectory = $root
   $lnk.IconLocation = "$root\build\icon.ico,0"
   $lnk.Description = 'Rylix – texty písní a romanizace'
-  $lnk.WindowStyle = 7
+  $lnk.WindowStyle = 1
   $lnk.Save()
   "created: $path"
 }

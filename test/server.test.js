@@ -56,7 +56,7 @@ test('lookup: validation, success, cache and upstream failure', async () => {
 });
 
 test('status endpoint reports Genius availability', async () => {
-  assert.deepEqual(await (await fetch(`${base}/api/status`)).json(), { genius: false });
+  assert.equal((await (await fetch(`${base}/api/status`)).json()).genius, false);
 });
 
 test('art proxy only serves images from Genius', async () => {
