@@ -22,8 +22,6 @@ const els = {
   warnings: $('#warnings'),
   lyrics: $('#lyrics'),
   lyricsInner: $('#lyrics-inner'),
-  compare: $('#compare'),
-  gridBody: $('#grid-body'),
   resync: $('#resync'),
   info: $('#info'),
   stats: $('#stats'),
@@ -306,7 +304,6 @@ function render(data) {
 
   renderWarnings(data);
   renderLyrics(data);
-  renderCompare(data);
   renderStats(data);
   setupPlayer(data);
   setView(prefs.view);
@@ -478,6 +475,10 @@ function lineNode(romanized, original, extraClass = '') {
 
 function renderLyrics(data) {
   const frag = document.createDocumentFragment();
+  // Column captions, visible only in Duo.
+  const head = el('div', { class: 'duo-head', 'aria-hidden': 'true' });
+  head.append(el('span', {}, 'Latinka'), el('span', {}, 'Azbuka'));
+  frag.append(head);
 
   if (data.synced) {
     // Time-synced lines (LRCLIB). Uncertain marks are carried over by matching text.
@@ -521,34 +522,6 @@ function markUncertain(node, u) {
     + (u.variants.length ? `\nJiný zdroj: ${u.variants.join(' / ')}` : '');
 }
 
-function renderCompare(data) {
-  const uncertain = new Map(data.uncertain.map((u) => [`${u.section}:${u.line}`, u]));
-  const frag = document.createDocumentFragment();
-  data.original.sections.forEach((section, si) => {
-    const rSection = data.romanized.sections[si];
-    if (si > 0) frag.append(el('div', { class: 'cell orig gap' }), el('div', { class: 'cell rom gap' }));
-    if (section.name !== null) {
-      frag.append(
-        el('div', { class: 'cell orig section' }, `[${section.name}]`),
-        el('div', { class: 'cell rom section' }, `[${rSection.name}]`),
-      );
-    }
-    section.lines.forEach((line, li) => {
-      const u = uncertain.get(`${si}:${li}`);
-      const cls = u ? ' uncertain' : '';
-      const o = el('div', { class: `cell orig${cls}` }, line);
-      const r = el('div', { class: `cell rom${cls}` }, rSection.lines[li]);
-      if (u) {
-        const tip = `${REASON_LABEL[u.reason] ?? u.reason}` + (u.variants.length ? `\nJiný zdroj: ${u.variants.join(' / ')}` : '');
-        o.title = tip;
-        r.title = tip;
-      }
-      frag.append(o, r);
-    });
-  });
-  els.gridBody.replaceChildren(frag);
-}
-
 function renderStats(data) {
   const src = data.source;
   const rows = [
@@ -588,11 +561,12 @@ function applyToggles() {
   els.toggleSections.setAttribute('aria-pressed', String(prefs.showSections));
   const synced = Boolean(current?.synced);
   const romanized = isRomanized(current);
-  els.toggleOriginal.disabled = !romanized;
+  // In Duo both scripts are already side by side.
+  els.toggleOriginal.disabled = !romanized || prefs.view === 'duo';
   els.toggleOriginal.title = romanized
     ? (prefs.showOriginal ? 'Zpět na latinku (azbuka se skryje)' : 'Velkým písmem azbuka, latinka malým pod ní')
     : 'Text není v azbuce, převod není potřeba';
-  els.segBtns.forEach((b) => { if (b.dataset.view === 'compare') b.disabled = !romanized; });
+  els.segBtns.forEach((b) => { if (b.dataset.view === 'duo') b.disabled = !romanized; });
   els.copy.textContent = romanized ? 'Kopírovat' : 'Kopírovat text';
   els.toggleSections.disabled = synced;
   els.toggleSections.title = synced
@@ -612,15 +586,18 @@ els.toggleSections.addEventListener('click', () => {
   applyToggles();
 });
 
+// Views: 'lyrics' (one script, Spotify-like) and 'duo' (Latin left, Cyrillic right, same look).
 function setView(view) {
-  // Nothing to compare for lyrics that are not romanized; keep the saved preference.
-  if (view === 'compare' && !isRomanized(current)) view = 'lyrics';
+  if (view === 'compare') view = 'duo'; // preference saved by older versions
+  // Nothing to put side by side for lyrics that are not romanized; keep the saved preference.
+  if (view === 'duo' && !isRomanized(current)) view = 'lyrics';
   else store.set('view', view);
   prefs.view = view;
   els.segBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  els.lyrics.hidden = view !== 'lyrics';
-  els.compare.hidden = view !== 'compare';
-  const showPlayer = view === 'lyrics' && Boolean(current?.synced);
+  els.lyrics.classList.toggle('duo', view === 'duo');
+  applyToggles();
+  if (playback.active >= 0) followActive(true);
+  const showPlayer = Boolean(current?.synced);
   els.player.hidden = !showPlayer;
   document.body.classList.toggle('no-player', !showPlayer);
   if (!showPlayer) pause();
@@ -905,7 +882,7 @@ async function onNowPlaying(np) {
   }
 
   // The loaded lyrics belong to the playing track → follow the real position.
-  if (current?.autoKey === key && current.synced && prefs.view === 'lyrics') {
+  if (current?.autoKey === key && current.synced) {
     const rec = current.recAnchor;
     // Recognized song inside a longer video: song position follows the video's position.
     const songPos = rec ? rec.songPos0 + (np.positionMs - rec.videoPos0) : np.positionMs;
