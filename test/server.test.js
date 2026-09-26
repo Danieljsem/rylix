@@ -53,3 +53,14 @@ test('lookup: validation, success, cache and upstream failure', async () => {
 test('status endpoint reports Genius availability', async () => {
   assert.deepEqual(await (await fetch(`${base}/api/status`)).json(), { genius: false });
 });
+
+test('art proxy only serves images from Genius', async () => {
+  const { isAllowedArtUrl } = await import('../src/server.js');
+  assert.equal(isAllowedArtUrl('https://images.genius.com/abc.300x300x1.png'), true);
+  for (const bad of ['http://images.genius.com/a.png', 'https://evil.com/a.png',
+    'https://images.genius.com.evil.com/a.png', 'https://user@images.genius.com/a.png',
+    'https://images.genius.com:8443/a.png', 'file:///C:/Windows/win.ini', 'nonsense', null]) {
+    assert.equal(isAllowedArtUrl(bad), false, String(bad));
+  }
+  assert.equal((await fetch(`${base}/api/art?u=${encodeURIComponent('https://evil.com/x.png')}`)).status, 400);
+});

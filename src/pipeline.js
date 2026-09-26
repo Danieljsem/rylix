@@ -31,6 +31,7 @@ export async function lookupLyrics({ artist, title }, options = {}) {
     romanized,
     text: { original: formatLyrics(original), romanized: formatLyrics(romanized) },
     synced,
+    art: candidates.find((c) => c.art)?.art ?? null,
     source: base.source,
     alternatives: others.map((c, i) => ({ ...c.source, agreement: agreements[i] })),
     confidence: confidenceLevel(providers.size, agreements, validation.valid),

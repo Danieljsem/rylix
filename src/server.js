@@ -17,6 +17,10 @@ const MIME = {
 };
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_FIELD = 200;
+const MAX_ART_BYTES = 5 * 1024 * 1024;
+// Cover art is proxied (same origin → the UI can read its colors). Only Genius'
+// image host is allowed, so this never becomes an open proxy.
+const ART_HOSTS = new Set(['images.genius.com']);
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -43,8 +47,37 @@ async function serveStatic(req, res) {
   }
 }
 
-export function createServer({ token = process.env.GENIUS_TOKEN, lookup = lookupLyrics } = {}) {
+export function isAllowedArtUrl(raw) {
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' && ART_HOSTS.has(u.hostname) && !u.username && !u.port;
+  } catch {
+    return false;
+  }
+}
+
+export function createServer({
+  token = process.env.GENIUS_TOKEN,
+  lookup = lookupLyrics,
+  fetchArt = (url) => fetch(url, { redirect: 'error' }),
+} = {}) {
   const cache = new Map();
+
+  async function handleArt(req, res) {
+    const target = new URL(req.url, 'http://x').searchParams.get('u');
+    if (!isAllowedArtUrl(target)) return send(res, 400, { error: 'bad art url' });
+    try {
+      const upstream = await fetchArt(target);
+      const type = upstream.headers.get('content-type') ?? '';
+      if (!upstream.ok || !type.startsWith('image/')) return send(res, 502, { error: 'art unavailable' });
+      const body = Buffer.from(await upstream.arrayBuffer());
+      if (body.length > MAX_ART_BYTES) return send(res, 502, { error: 'art too large' });
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'max-age=86400' });
+      res.end(body);
+    } catch {
+      send(res, 502, { error: 'art unavailable' });
+    }
+  }
 
   async function handleLookup(req, res) {
     let body;
@@ -76,6 +109,7 @@ export function createServer({ token = process.env.GENIUS_TOKEN, lookup = lookup
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api/lyrics') return handleLookup(req, res);
+    if (req.method === 'GET' && req.url.startsWith('/api/art?')) return handleArt(req, res);
     if (req.method === 'GET' && req.url === '/api/status') {
       return send(res, 200, { genius: Boolean(token) });
     }

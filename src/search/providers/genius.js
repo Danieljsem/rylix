@@ -108,6 +108,7 @@ export async function searchGenius(queries, { fetch: fetchImpl = fetch, token } 
     artist: song.primary_artist?.name ?? queries[0].artist,
     title: song.title,
     source: { provider: 'genius', url: song.url },
+    art: song.song_art_image_thumbnail_url ?? null,
     sections: parseLyrics(text).sections,
     synced: null,
   }];

@@ -5,36 +5,64 @@ const els = {
   artist: $('#artist'),
   title: $('#title'),
   go: $('#go'),
-  message: $('#message'),
-  result: $('#result'),
+  providers: $('#providers'),
+  stage: $('#stage'),
+  now: $('#now'),
+  art: $('#art'),
+  artFallback: $('#art-fallback'),
   songTitle: $('#song-title'),
   songArtist: $('#song-artist'),
+  badge: $('#badge'),
+  segBtns: document.querySelectorAll('.seg-btn'),
+  toggleOriginal: $('#toggle-original'),
+  toggleSections: $('#toggle-sections'),
+  copy: $('#copy'),
+  copyOriginal: $('#copy-original'),
+  message: $('#message'),
   warnings: $('#warnings'),
+  lyrics: $('#lyrics'),
+  lyricsInner: $('#lyrics-inner'),
+  compare: $('#compare'),
   gridBody: $('#grid-body'),
-  romanOnly: $('#view-roman'),
-  views: { both: $('#view-both'), roman: $('#view-roman'), synced: $('#view-synced') },
-  tabs: document.querySelectorAll('.tab'),
-  tabSynced: $('#tab-synced'),
+  resync: $('#resync'),
+  info: $('#info'),
   stats: $('#stats'),
-  toast: $('#toast'),
-  providers: $('#providers'),
+  player: $('#player'),
   play: $('#play'),
   seek: $('#seek'),
   time: $('#time'),
   duration: $('#duration'),
-  syncedLines: $('#synced-lines'),
+  offset: $('#offset'),
+  offsetMinus: $('#offset-minus'),
+  offsetPlus: $('#offset-plus'),
+  toast: $('#toast'),
 };
 
-const CONFIDENCE_LABEL = { high: 'Vysoká', medium: 'Střední', low: 'Nízká' };
+const CONFIDENCE_LABEL = { high: 'Ověřeno', medium: 'Částečně ověřeno', low: 'Neověřeno' };
 const REASON_LABEL = {
   'differs between sources': 'Zdroje se v tomto řádku liší',
   'missing in another source': 'Tento řádek jiný zdroj nemá',
 };
 const PROVIDER_LABEL = { lrclib: 'LRCLIB', genius: 'Genius' };
 
+const store = {
+  get(key, fallback = null) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
+  },
+};
+
+const prefs = {
+  showOriginal: store.get('showOriginal', false),
+  showSections: store.get('showSections', false),
+  view: store.get('view', 'lyrics'),
+};
+
 let current = null;
 
-// ---------- helpers ----------
+// ---------- small helpers ----------
 
 function el(tag, attrs = {}, text) {
   const node = document.createElement(tag);
@@ -47,17 +75,6 @@ function el(tag, attrs = {}, text) {
   return node;
 }
 
-const store = {
-  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
-  set(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } },
-};
-
-function showMessage(text, kind = '') {
-  els.message.textContent = text;
-  els.message.className = `message ${kind}`;
-  els.message.hidden = !text;
-}
-
 let toastTimer;
 function toast(text) {
   els.toast.textContent = text;
@@ -66,7 +83,7 @@ function toast(text) {
   toastTimer = setTimeout(() => { els.toast.hidden = true; }, 1800);
 }
 
-async function copy(text, label) {
+async function copyText(text, label) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -85,6 +102,96 @@ const fmtTime = (ms) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
+// Same idea as the server's line key: case, ё and punctuation don't matter.
+const normalize = (s) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+
+function plural(n, one, few, many) {
+  if (n === 1) return one;
+  if (n >= 2 && n <= 4) return few;
+  return many;
+}
+
+function showMessage(text, kind = '') {
+  els.message.textContent = text;
+  els.message.className = `message ${kind}`;
+  els.message.hidden = !text;
+}
+
+// ---------- song color (from the cover, like Spotify) ----------
+
+function setSongColor(h, s) {
+  els.stage.style.setProperty('--song-h', String(Math.round(h)));
+  els.stage.style.setProperty('--song-s', `${Math.round(s)}%`);
+}
+
+function hashHue(text) {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+// Saturation-weighted average hue of the cover; gray covers stay calm and gray.
+function colorFromImage(img) {
+  const size = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, size, size);
+  const { data } = ctx.getImageData(0, 0, size, size);
+  let x = 0;
+  let y = 0;
+  let satSum = 0;
+  let weight = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] / 255;
+    const g = data[i + 1] / 255;
+    const b = data[i + 2] / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    if (d === 0 || l < 0.08 || l > 0.95) continue;
+    const s = d / (1 - Math.abs(2 * l - 1));
+    let h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    const rad = (h * 60 * Math.PI) / 180;
+    const w = s * s;
+    x += Math.cos(rad) * w;
+    y += Math.sin(rad) * w;
+    satSum += s * w;
+    weight += w;
+  }
+  if (weight < 1) return null;
+  const hue = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  const sat = Math.min(48, Math.max(14, (satSum / weight) * 55));
+  return { hue, sat };
+}
+
+function applyArtAndColor(data) {
+  setSongColor(hashHue(`${data.artist} ${data.title}`), 22);
+  els.art.hidden = true;
+  els.artFallback.hidden = false;
+  if (!data.art) return;
+
+  const img = new Image();
+  img.onload = () => {
+    if (current !== data) return;
+    els.art.src = img.src;
+    els.art.hidden = false;
+    els.artFallback.hidden = true;
+    try {
+      const c = colorFromImage(img);
+      // Colorful cover → its hue; black-and-white cover → calm slate gray.
+      if (c) setSongColor(c.hue, c.sat);
+      else setSongColor(212, 10);
+    } catch { /* keep the fallback color */ }
+  };
+  img.src = `/api/art?u=${encodeURIComponent(data.art)}`;
+}
+
 // ---------- search ----------
 
 els.form.addEventListener('submit', async (e) => {
@@ -93,9 +200,10 @@ els.form.addEventListener('submit', async (e) => {
   const title = els.title.value.trim();
   if (!artist || !title) return;
 
-  store.set('last', JSON.stringify({ artist, title }));
+  store.set('last', { artist, title });
   els.go.disabled = true;
   els.go.classList.add('loading');
+  els.lyrics.style.opacity = '0.45';
   showMessage('');
 
   try {
@@ -107,21 +215,21 @@ els.form.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     if (!data.found) {
-      els.result.hidden = true;
       const failed = data.errors?.map((x) => `${PROVIDER_LABEL[x.provider] ?? x.provider}: ${x.message}`).join(', ');
       showMessage(
-        `Text se nepodařilo najít.${failed ? ` Chyby zdrojů: ${failed}.` : ''} Zkus název napsat azbukou nebo jinak.`,
+        `Text se nepodařilo najít.${failed ? ` Chyby zdrojů: ${failed}.` : ''} `
+        + 'Zkus jiný přepis názvu nebo ho napiš azbukou.',
         'error',
       );
       return;
     }
     render(data);
   } catch (err) {
-    els.result.hidden = true;
     showMessage(`Chyba: ${err.message}`, 'error');
   } finally {
     els.go.disabled = false;
     els.go.classList.remove('loading');
+    els.lyrics.style.opacity = '';
   }
 });
 
@@ -129,61 +237,99 @@ els.form.addEventListener('submit', async (e) => {
 
 function render(data) {
   current = data;
-  stopPlayback();
-  els.result.hidden = false;
+  resetPlayback();
+
+  els.now.hidden = false;
+  els.info.hidden = false;
   els.songTitle.textContent = data.title;
   els.songArtist.textContent = data.artist;
+  els.badge.textContent = CONFIDENCE_LABEL[data.confidence];
+  els.badge.className = `badge ${data.confidence}`;
+  els.badge.title = data.alternatives.length
+    ? `Porovnáno s: ${data.alternatives.map((a) => `${PROVIDER_LABEL[a.provider] ?? a.provider} (${Math.round(a.agreement * 100)} %)`).join(', ')}`
+    : 'Nalezeno jen v jednom zdroji';
+  applyArtAndColor(data);
 
   renderWarnings(data);
-  renderGrid(data);
-  els.romanOnly.textContent = data.text.romanized;
-  renderSynced(data);
+  renderLyrics(data);
+  renderCompare(data);
   renderStats(data);
-
-  const preferred = store.get('view') ?? 'both';
-  setView(preferred === 'synced' && !data.synced ? 'both' : preferred);
+  setupPlayer(data);
+  setView(prefs.view);
+  els.lyrics.scrollTop = 0;
 }
 
 function renderWarnings(data) {
-  els.warnings.replaceChildren();
+  const out = [];
   if (!data.valid) {
-    const box = el('div', { class: 'warning bad' }, 'Kontrola struktury neprošla. Výstup nemusí odpovídat originálu:');
+    const box = el('div', { class: 'bad' }, 'Kontrola struktury neprošla. Výstup nemusí odpovídat originálu:');
     const ul = el('ul');
     data.validationErrors.forEach((e) => ul.append(el('li', {}, e)));
     box.append(ul);
-    els.warnings.append(box);
-  }
-  if (data.uncertain.length > 0) {
-    els.warnings.append(el('div', { class: 'warning warn' },
-      `${data.uncertain.length} ${plural(data.uncertain.length, 'řádek se', 'řádky se', 'řádků se')} mezi zdroji liší. `
-      + 'Jsou zvýrazněné; najetím myší uvidíš variantu z druhého zdroje.'));
-  }
-  if (data.rejected?.length) {
-    const names = data.rejected.map((r) => `${PROVIDER_LABEL[r.provider] ?? r.provider} („${r.title}“)`).join(', ');
-    els.warnings.append(el('div', { class: 'warning' },
-      `Nepoužito, vypadá jako jiná skladba: ${names}.`));
+    out.push(box);
   }
   if (data.errors?.length) {
     const names = data.errors.map((x) => PROVIDER_LABEL[x.provider] ?? x.provider).join(', ');
-    els.warnings.append(el('div', { class: 'warning' }, `Nedostupný zdroj: ${names}. Výsledek je jen z ostatních.`));
+    out.push(el('div', {}, `Nedostupný zdroj: ${names}. Výsledek je jen z ostatních.`));
   }
+  els.warnings.replaceChildren(...out);
 }
 
-function plural(n, one, few, many) {
-  if (n === 1) return one;
-  if (n >= 2 && n <= 4) return few;
-  return many;
+function lineNode(romanized, original, extraClass = '') {
+  const p = el('p', { class: `line ${extraClass}`.trim() });
+  p.append(el('span', { class: 'r' }, romanized || '♪'));
+  if (original) p.append(el('span', { class: 'orig' }, original));
+  if (!romanized) p.classList.add('gap-mark');
+  return p;
 }
 
-function renderGrid(data) {
-  const uncertain = new Map(data.uncertain.map((u) => [`${u.section}:${u.line}`, u]));
+function renderLyrics(data) {
   const frag = document.createDocumentFragment();
 
+  if (data.synced) {
+    // Time-synced lines (LRCLIB). Uncertain marks are carried over by matching text.
+    const uncertain = new Map(data.uncertain.map((u) => [normalize(u.text), u]));
+    data.synced.forEach((line, i) => {
+      const node = lineNode(line.romanized, line.text);
+      node.dataset.i = String(i);
+      const u = line.text && uncertain.get(normalize(line.text));
+      if (u) markUncertain(node, u);
+      node.addEventListener('click', () => seekTo(line.timeMs + playback.offset, { follow: true }));
+      frag.append(node);
+    });
+  } else {
+    const uncertain = new Map(data.uncertain.map((u) => [`${u.section}:${u.line}`, u]));
+    data.original.sections.forEach((section, si) => {
+      const rSection = data.romanized.sections[si];
+      if (section.lines.length === 0 && section.name === null) return;
+      if (si > 0) frag.append(el('div', { class: 'section-gap' }));
+      if (section.name !== null) frag.append(el('div', { class: 'section-label' }, rSection.name));
+      section.lines.forEach((line, li) => {
+        const node = lineNode(rSection.lines[li], line);
+        const u = uncertain.get(`${si}:${li}`);
+        if (u) markUncertain(node, u);
+        frag.append(node);
+      });
+    });
+  }
+
+  els.lyricsInner.replaceChildren(frag);
+  els.lyrics.classList.toggle('synced', Boolean(data.synced));
+  applyToggles();
+}
+
+function markUncertain(node, u) {
+  node.classList.add('uncertain');
+  node.querySelector('.r').title = `${REASON_LABEL[u.reason] ?? u.reason}`
+    + (u.variants.length ? `\nJiný zdroj: ${u.variants.join(' / ')}` : '');
+}
+
+function renderCompare(data) {
+  const uncertain = new Map(data.uncertain.map((u) => [`${u.section}:${u.line}`, u]));
+  const frag = document.createDocumentFragment();
   data.original.sections.forEach((section, si) => {
     const rSection = data.romanized.sections[si];
-    if (si > 0) {
-      frag.append(el('div', { class: 'cell orig gap' }), el('div', { class: 'cell rom gap' }));
-    }
+    if (si > 0) frag.append(el('div', { class: 'cell orig gap' }), el('div', { class: 'cell rom gap' }));
     if (section.name !== null) {
       frag.append(
         el('div', { class: 'cell orig section' }, `[${section.name}]`),
@@ -196,34 +342,33 @@ function renderGrid(data) {
       const o = el('div', { class: `cell orig${cls}` }, line);
       const r = el('div', { class: `cell rom${cls}` }, rSection.lines[li]);
       if (u) {
-        const tip = `${REASON_LABEL[u.reason] ?? u.reason}`
-          + (u.variants.length ? `\nJiný zdroj: ${u.variants.join(' / ')}` : '');
+        const tip = `${REASON_LABEL[u.reason] ?? u.reason}` + (u.variants.length ? `\nJiný zdroj: ${u.variants.join(' / ')}` : '');
         o.title = tip;
         r.title = tip;
       }
       frag.append(o, r);
     });
   });
-
   els.gridBody.replaceChildren(frag);
 }
 
 function renderStats(data) {
   const src = data.source;
   const rows = [
-    ['Zdroj', () => {
-      const a = el('a', { href: src.url, target: '_blank', rel: 'noopener' }, PROVIDER_LABEL[src.provider] ?? src.provider);
-      return a;
-    }],
-    ['Důvěryhodnost', () => el('span', { class: `badge ${data.confidence}` }, CONFIDENCE_LABEL[data.confidence])],
-    ['Originální řádky', data.stats.originalLines],
-    ['Romanizované řádky', data.stats.romanizedLines],
-    ['Neověřené řádky', data.uncertain.length],
+    ['Zdroj textu', () => el('a', { href: src.url, target: '_blank', rel: 'noopener' }, PROVIDER_LABEL[src.provider] ?? src.provider)],
+    ['Důvěryhodnost', CONFIDENCE_LABEL[data.confidence]],
     ['Ověřeno proti', data.alternatives.length
       ? data.alternatives.map((a) => `${PROVIDER_LABEL[a.provider] ?? a.provider} (${Math.round(a.agreement * 100)} % shoda)`).join(', ')
       : 'jen jeden zdroj'],
-    ['Časování', data.synced ? `${data.synced.filter((l) => l.text).length} řádků` : 'není k dispozici'],
+    ['Originální řádky', data.stats.originalLines],
+    ['Romanizované řádky', data.stats.romanizedLines],
+    ['Kontrola 1:1', data.valid ? 'v pořádku' : 'NEPROŠLA'],
+    ['Neověřené řádky', data.uncertain.length],
+    ['Časování', data.synced ? `${data.synced.filter((l) => l.text).length} řádků (LRCLIB)` : 'není k dispozici'],
   ];
+  if (data.rejected?.length) {
+    rows.push(['Nepoužito (jiná skladba)', data.rejected.map((r) => `${PROVIDER_LABEL[r.provider] ?? r.provider}: ${r.title}`).join(', ')]);
+  }
   const frag = document.createDocumentFragment();
   for (const [label, value] of rows) {
     const wrap = el('div');
@@ -236,131 +381,201 @@ function renderStats(data) {
   els.stats.replaceChildren(frag);
 }
 
-// ---------- views ----------
+// ---------- toggles & views ----------
+
+function applyToggles() {
+  els.lyrics.classList.toggle('show-original', prefs.showOriginal);
+  els.lyrics.classList.toggle('show-sections', prefs.showSections);
+  els.toggleOriginal.setAttribute('aria-pressed', String(prefs.showOriginal));
+  els.toggleSections.setAttribute('aria-pressed', String(prefs.showSections));
+  const synced = Boolean(current?.synced);
+  els.toggleSections.disabled = synced;
+  els.toggleSections.title = synced
+    ? 'Časovaný text nemá sekce (jsou v Porovnání)'
+    : 'Zobrazit názvy sekcí';
+}
+
+els.toggleOriginal.addEventListener('click', () => {
+  prefs.showOriginal = !prefs.showOriginal;
+  store.set('showOriginal', prefs.showOriginal);
+  applyToggles();
+  if (playback.active >= 0) followActive(true);
+});
+els.toggleSections.addEventListener('click', () => {
+  prefs.showSections = !prefs.showSections;
+  store.set('showSections', prefs.showSections);
+  applyToggles();
+});
 
 function setView(view) {
-  for (const [name, node] of Object.entries(els.views)) node.hidden = name !== view;
-  els.tabs.forEach((t) => t.classList.toggle('active', t.dataset.view === view));
+  prefs.view = view;
   store.set('view', view);
-  if (view !== 'synced') stopPlayback();
+  els.segBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+  els.lyrics.hidden = view !== 'lyrics';
+  els.compare.hidden = view !== 'compare';
+  const showPlayer = view === 'lyrics' && Boolean(current?.synced);
+  els.player.hidden = !showPlayer;
+  document.body.classList.toggle('no-player', !showPlayer);
+  if (!showPlayer) pause();
+}
+els.segBtns.forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+
+els.copy.addEventListener('click', () => current && copyText(current.text.romanized, 'Latinka zkopírována'));
+els.copyOriginal.addEventListener('click', () => current && copyText(current.text.original, 'Originál zkopírován'));
+
+// ---------- time-synced playback ----------
+
+const playback = {
+  playing: false,
+  startedAt: 0, // performance.now() when (re)started
+  position: 0, // ms at startedAt / while paused
+  offset: 0, // user correction: + delays the text
+  active: -1,
+  follow: true,
+  raf: 0,
+  end: 0,
+};
+
+const now = () => (playback.playing ? playback.position + (performance.now() - playback.startedAt) : playback.position);
+
+function setupPlayer(data) {
+  if (!data.synced) return;
+  playback.end = data.synced.at(-1).timeMs + 6000;
+  els.seek.max = String(playback.end);
+  els.duration.textContent = fmtTime(playback.end);
+  updateOffsetLabel();
+  update(0);
 }
 
-els.tabs.forEach((t) => t.addEventListener('click', () => !t.disabled && setView(t.dataset.view)));
-$('#copy').addEventListener('click', () => current && copy(current.text.romanized, 'Latinka zkopírována'));
-$('#copy-original').addEventListener('click', () => current && copy(current.text.original, 'Originál zkopírován'));
-
-// ---------- synced (karaoke) ----------
-
-let playback = { playing: false, startedAt: 0, offset: 0, raf: 0, active: -1 };
-
-function renderSynced(data) {
-  els.tabSynced.disabled = !data.synced;
-  els.tabSynced.title = data.synced ? '' : 'K této skladbě nejsou časované texty';
-  if (!data.synced) {
-    els.syncedLines.replaceChildren();
-    return;
-  }
-  const frag = document.createDocumentFragment();
-  data.synced.forEach((line, i) => {
-    const row = el('div', { class: 'sline', dataset: { i } });
-    row.append(el('div', { class: 'r' }, line.romanized || '♪'), el('div', { class: 'o' }, line.text));
-    row.addEventListener('click', () => seekTo(line.timeMs));
-    frag.append(row);
-  });
-  els.syncedLines.replaceChildren(frag);
-
-  const end = data.synced.at(-1).timeMs + 5000;
-  els.seek.max = String(end);
-  els.duration.textContent = fmtTime(end);
-  playback.offset = 0;
+function resetPlayback() {
+  pause();
+  playback.position = 0;
   playback.active = -1;
-  updateSynced(0);
+  playback.follow = true;
+  els.resync.hidden = true;
 }
 
-const now = () => (playback.playing ? performance.now() - playback.startedAt + playback.offset : playback.offset);
-
-function tick() {
-  const t = now();
-  if (t >= Number(els.seek.max)) {
-    stopPlayback();
-    return;
-  }
-  updateSynced(t);
-  playback.raf = requestAnimationFrame(tick);
-}
-
-function updateSynced(t) {
-  els.time.textContent = fmtTime(t);
-  els.seek.value = String(t);
-  const lines = current?.synced ?? [];
-  let idx = -1;
-  for (let i = 0; i < lines.length && lines[i].timeMs <= t; i++) idx = i;
-  if (idx === playback.active) return;
-  playback.active = idx;
-  els.syncedLines.querySelectorAll('.sline').forEach((row, i) => {
-    row.classList.toggle('active', i === idx);
-    row.classList.toggle('past', i < idx);
-  });
-  const row = els.syncedLines.children[Math.max(idx, 0)];
-  if (row) {
-    const box = els.syncedLines;
-    box.scrollTop = row.offsetTop - box.clientHeight / 2 + row.clientHeight / 2;
-  }
-}
-
-function startPlayback() {
+function play() {
+  if (!current?.synced) return;
+  if (now() >= playback.end) playback.position = 0;
   playback.playing = true;
   playback.startedAt = performance.now();
-  els.play.textContent = '❚❚';
+  els.play.classList.add('playing');
   els.play.setAttribute('aria-label', 'Pozastavit');
+  cancelAnimationFrame(playback.raf);
   playback.raf = requestAnimationFrame(tick);
 }
 
-function stopPlayback() {
-  if (playback.playing) playback.offset = now();
+function pause() {
+  if (playback.playing) playback.position = now();
   playback.playing = false;
   cancelAnimationFrame(playback.raf);
-  els.play.textContent = '▶';
+  els.play.classList.remove('playing');
   els.play.setAttribute('aria-label', 'Přehrát');
 }
 
-function seekTo(ms) {
-  playback.offset = ms;
-  playback.startedAt = performance.now();
-  playback.active = -2;
-  updateSynced(ms);
+function tick() {
+  const t = now();
+  if (t >= playback.end) {
+    playback.position = playback.end;
+    pause();
+    update(playback.end);
+    return;
+  }
+  update(t);
+  playback.raf = requestAnimationFrame(tick);
 }
 
-els.play.addEventListener('click', () => {
-  if (playback.playing) {
-    stopPlayback();
-  } else {
-    if (playback.offset >= Number(els.seek.max)) seekTo(0);
-    startPlayback();
-  }
-});
-els.seek.addEventListener('input', () => seekTo(Number(els.seek.value)));
+function seekTo(ms, { follow = false } = {}) {
+  playback.position = Math.max(0, Math.min(ms, playback.end));
+  playback.startedAt = performance.now();
+  if (follow) setFollow(true);
+  playback.active = -2; // force re-highlight
+  update(playback.position);
+}
+
+function update(t) {
+  els.time.textContent = fmtTime(t);
+  els.seek.value = String(t);
+  els.seek.style.setProperty('--pct', `${playback.end ? (t / playback.end) * 100 : 0}%`);
+
+  const lines = current?.synced ?? [];
+  let idx = -1;
+  for (let i = 0; i < lines.length && lines[i].timeMs + playback.offset <= t; i++) idx = i;
+  if (idx === playback.active) return;
+  playback.active = idx;
+
+  const nodes = els.lyricsInner.children;
+  for (let i = 0; i < nodes.length; i++) nodes[i].classList.toggle('active', i === idx);
+  followActive();
+}
+
+function followActive(instant = false) {
+  if (!playback.follow || playback.active < 0) return;
+  const node = els.lyricsInner.children[playback.active];
+  if (!node) return;
+  const top = node.offsetTop - els.lyrics.clientHeight * 0.33;
+  els.lyrics.scrollTo({ top: Math.max(0, top), behavior: instant ? 'auto' : 'smooth' });
+}
+
+function setFollow(on) {
+  playback.follow = on;
+  els.resync.hidden = on || !current?.synced;
+  if (on) followActive();
+}
+
+// Manual scrolling pauses auto-follow (like Spotify); "Synchronizovat" brings it back.
+for (const type of ['wheel', 'touchmove']) {
+  els.lyrics.addEventListener(type, () => {
+    if (playback.playing && playback.follow) setFollow(false);
+  }, { passive: true });
+}
+els.resync.addEventListener('click', () => setFollow(true));
+
+els.play.addEventListener('click', () => (playback.playing ? pause() : play()));
+els.seek.addEventListener('input', () => seekTo(Number(els.seek.value), { follow: true }));
+
+function updateOffsetLabel() {
+  const s = playback.offset / 1000;
+  els.offset.textContent = `${s > 0 ? '+' : ''}${s.toFixed(1).replace('.', ',')} s`;
+}
+function shiftOffset(ms) {
+  playback.offset = Math.max(-10000, Math.min(10000, playback.offset + ms));
+  updateOffsetLabel();
+  playback.active = -2;
+  update(now());
+}
+els.offsetMinus.addEventListener('click', () => shiftOffset(-500));
+els.offsetPlus.addEventListener('click', () => shiftOffset(500));
+
 document.addEventListener('keydown', (e) => {
-  if (els.views.synced.hidden || e.target.tagName === 'INPUT') return;
+  if (!current?.synced || els.player.hidden) return;
+  // Typing in the search, or Space on a focused button (it clicks natively).
+  if (e.target.closest('input, textarea, button, summary')) return;
   if (e.code === 'Space') {
     e.preventDefault();
-    els.play.click();
+    if (playback.playing) pause();
+    else play();
+  } else if (e.code === 'ArrowLeft') {
+    seekTo(now() - 5000, { follow: true });
+  } else if (e.code === 'ArrowRight') {
+    seekTo(now() + 5000, { follow: true });
   }
 });
 
 // ---------- init ----------
 
-try {
-  const last = JSON.parse(store.get('last') ?? 'null');
-  if (last) {
-    els.artist.value = last.artist;
-    els.title.value = last.title;
-  }
-} catch { /* ignore */ }
+const last = store.get('last');
+if (last) {
+  els.artist.value = last.artist ?? '';
+  els.title.value = last.title ?? '';
+}
+document.body.classList.add('no-player');
+applyToggles();
 
 fetch('/api/status')
   .then((r) => r.json())
   .then((s) => {
-    els.providers.textContent = s.genius ? 'Zdroje: LRCLIB + Genius' : 'Zdroje: LRCLIB (Genius token chybí)';
+    els.providers.textContent = s.genius ? 'LRCLIB + Genius' : 'jen LRCLIB (chybí Genius token)';
   })
   .catch(() => {});
