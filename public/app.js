@@ -635,8 +635,16 @@ const playback = {
 
 const now = () => (playback.playing ? playback.position + (performance.now() - playback.startedAt) : playback.position);
 
+// A line lights up slightly before its timestamp, so the eye is there when it is sung.
+const LEAD_MS = 250;
+
+// The ±0.5 s correction is remembered per song (LRCLIB timing can belong to another edit).
+const offsetKey = (data) => data?.source?.url ?? `${data?.artist}|${data?.title}`;
+const savedOffsets = () => store.get('offsets', {});
+
 function setupPlayer(data) {
   setExternal(false);
+  playback.offset = savedOffsets()[offsetKey(data)] ?? 0;
   if (!data.synced) return;
   playback.end = data.synced.at(-1).timeMs + 6000;
   els.seek.max = String(playback.end);
@@ -699,7 +707,7 @@ function update(t) {
 
   const lines = current?.synced ?? [];
   let idx = -1;
-  for (let i = 0; i < lines.length && lines[i].timeMs + playback.offset <= t; i++) idx = i;
+  for (let i = 0; i < lines.length && lines[i].timeMs + playback.offset <= t + LEAD_MS; i++) idx = i;
   if (idx === playback.active) return;
   playback.active = idx;
 
@@ -776,6 +784,10 @@ function updateOffsetLabel() {
 }
 function shiftOffset(ms) {
   playback.offset = Math.max(-10000, Math.min(10000, playback.offset + ms));
+  const offsets = savedOffsets();
+  if (playback.offset === 0) delete offsets[offsetKey(current)];
+  else offsets[offsetKey(current)] = playback.offset;
+  store.set('offsets', offsets);
   updateOffsetLabel();
   playback.active = -2;
   update(now());
@@ -835,7 +847,7 @@ async function pollNowPlaying() {
     }
     await onNowPlaying(np);
   } catch { /* server restarting — try again */ }
-  auto.timer = setTimeout(pollNowPlaying, document.hidden ? 3000 : 1000);
+  auto.timer = setTimeout(pollNowPlaying, document.hidden ? 3000 : playback.external ? 500 : 1000);
 }
 
 async function onNowPlaying(np) {
@@ -866,7 +878,8 @@ async function onNowPlaying(np) {
       els.duration.textContent = fmtTime(playback.end);
     }
     const drift = Math.abs(now() - np.positionMs);
-    if (drift > 350 || np.playing !== playback.playing) {
+    // Re-anchor on every update that is off by more than a few frames; tiny steps are invisible.
+    if (drift > 60 || np.playing !== playback.playing) {
       playback.position = np.positionMs;
       playback.startedAt = performance.now();
       playback.active = -2;

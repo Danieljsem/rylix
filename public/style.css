@@ -276,7 +276,7 @@ body.no-player .stage { height: calc(100dvh - var(--topbar-h) - 40px); }
 .section-gap { height: clamp(10px, 1.4vw, 18px); }
 
 /* Time-synced mode: like Spotify, the current line is white, the others dimmed. */
-.lyrics.synced .line { color: var(--line-inactive); cursor: pointer; transition: color 0.3s ease; }
+.lyrics.synced .line { color: var(--line-inactive); cursor: pointer; transition: color 0.12s linear; }
 .lyrics.synced .line:hover { color: rgba(255, 255, 255, 0.8); }
 .lyrics.synced .line.active { color: var(--line-active); }
 
