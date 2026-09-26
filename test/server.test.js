@@ -9,6 +9,7 @@ let lookups = 0;
 before(async () => {
   server = createServer({
     token: null,
+    nowPlaying: { get: () => ({ available: true, playing: true, track: { title: 'Ветер' }, positionMs: 1234 }) },
     lookup: async ({ artist, title }) => {
       lookups++;
       if (title === 'boom') throw new Error('kaput');
@@ -63,4 +64,10 @@ test('art proxy only serves images from Genius', async () => {
     assert.equal(isAllowedArtUrl(bad), false, String(bad));
   }
   assert.equal((await fetch(`${base}/api/art?u=${encodeURIComponent('https://evil.com/x.png')}`)).status, 400);
+});
+
+test('now-playing endpoint returns the watcher snapshot', async () => {
+  const body = await (await fetch(`${base}/api/now-playing`)).json();
+  assert.equal(body.positionMs, 1234);
+  assert.equal(body.track.title, 'Ветер');
 });

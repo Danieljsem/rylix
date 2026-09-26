@@ -1,4 +1,4 @@
-/* ualyrics — dark, Spotify-lyrics-like. Song color comes from the cover (--song-h/s). */
+/* Rylix — dark, Spotify-lyrics-like. Song color comes from the cover (--song-h/s). */
 :root {
   --bg: #0d0d0f;
   --panel: #18181b;
@@ -57,6 +57,29 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.02em; white-space: nowrap; }
 .logo { display: block; border-radius: 8px; }
 .hint { color: var(--muted); font-size: 12px; white-space: nowrap; margin-left: auto; }
+
+.auto-btn {
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #3a3a40;
+  background: transparent;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.auto-btn:hover { border-color: #fff; }
+.auto-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: #71717a; }
+.auto-btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(30, 215, 96, 0.12); }
+.auto-btn[aria-pressed="true"] .dot { background: var(--accent); box-shadow: 0 0 0 0 rgba(30, 215, 96, 0.6); animation: pulse 1.8s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(30, 215, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(30, 215, 96, 0); } }
+.sync-source { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.player.external .play, .player.external #seek { pointer-events: none; }
+.player.external .play { opacity: 0.35; }
 
 .search { flex: 1; max-width: 640px; display: flex; gap: 8px; }
 .search input {
@@ -362,7 +385,7 @@ body.no-player .toast { bottom: 24px; }
 @media (max-width: 860px) {
   .topbar { flex-wrap: wrap; gap: 10px; padding-block: 10px; }
   .search { order: 3; flex-basis: 100%; max-width: none; }
-  #go .label { display: none; }
+  #go .label, .auto-label { display: none; }
   .stage, body.no-player .stage { height: auto; min-height: 70dvh; }
   .lyrics { max-height: 70dvh; }
   .player { grid-template-columns: auto 1fr; gap: 12px; padding-inline: 16px; }

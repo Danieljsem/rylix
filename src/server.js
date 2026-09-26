@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lookupLyrics } from './pipeline.js';
+import { createNowPlaying } from './nowplaying/index.js';
 
 const PUBLIC_DIR = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const MIME = {
@@ -60,6 +61,7 @@ export function createServer({
   token = process.env.GENIUS_TOKEN,
   lookup = lookupLyrics,
   fetchArt = (url) => fetch(url, { redirect: 'error' }),
+  nowPlaying = createNowPlaying(),
 } = {}) {
   const cache = new Map();
 
@@ -110,6 +112,7 @@ export function createServer({
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api/lyrics') return handleLookup(req, res);
     if (req.method === 'GET' && req.url.startsWith('/api/art?')) return handleArt(req, res);
+    if (req.method === 'GET' && req.url === '/api/now-playing') return send(res, 200, nowPlaying.get());
     if (req.method === 'GET' && req.url === '/api/status') {
       return send(res, 200, { genius: Boolean(token) });
     }
@@ -122,7 +125,7 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const port = Number(process.env.PORT) || 3000;
   createServer().listen(port, '127.0.0.1', () => {
-    console.log(`ualyrics běží na http://127.0.0.1:${port}`);
+    console.log(`Rylix běží na http://127.0.0.1:${port}`);
     if (!process.env.GENIUS_TOKEN) console.log('Pozor: GENIUS_TOKEN chybí, hledá se jen v LRCLIB.');
   });
 }

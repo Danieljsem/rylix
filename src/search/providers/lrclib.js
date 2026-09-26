@@ -4,7 +4,7 @@ import { isOriginalCyrillic } from '../../romanizer/index.js';
 import { matchScore, titlePrecision } from '../match.js';
 
 const API = 'https://lrclib.net/api';
-const HEADERS = { 'User-Agent': 'ualyrics/0.1 (personal lyrics romanizer)' };
+const HEADERS = { 'User-Agent': 'rylix/0.1 (personal lyrics romanizer)' };
 
 async function getJson(fetchImpl, params) {
   const res = await fetchImpl(`${API}/search?${new URLSearchParams(params)}`, { headers: HEADERS });

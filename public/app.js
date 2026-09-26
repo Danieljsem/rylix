@@ -36,6 +36,8 @@ const els = {
   offsetMinus: $('#offset-minus'),
   offsetPlus: $('#offset-plus'),
   toast: $('#toast'),
+  auto: $('#auto'),
+  syncSource: $('#sync-source'),
 };
 
 const CONFIDENCE_LABEL = { high: 'Ověřeno', medium: 'Částečně ověřeno', low: 'Neověřeno' };
@@ -194,12 +196,15 @@ function applyArtAndColor(data) {
 
 // ---------- search ----------
 
-els.form.addEventListener('submit', async (e) => {
+els.form.addEventListener('submit', (e) => {
   e.preventDefault();
   const artist = els.artist.value.trim();
   const title = els.title.value.trim();
-  if (!artist || !title) return;
+  if (artist && title) search(artist, title);
+});
 
+// Returns the result (or null). `autoKey` ties the result to the track that is playing.
+async function search(artist, title, { autoKey = null } = {}) {
   store.set('last', { artist, title });
   els.go.disabled = true;
   els.go.classList.add('loading');
@@ -217,21 +222,26 @@ els.form.addEventListener('submit', async (e) => {
     if (!data.found) {
       const failed = data.errors?.map((x) => `${PROVIDER_LABEL[x.provider] ?? x.provider}: ${x.message}`).join(', ');
       showMessage(
-        `Text se nepodařilo najít.${failed ? ` Chyby zdrojů: ${failed}.` : ''} `
-        + 'Zkus jiný přepis názvu nebo ho napiš azbukou.',
-        'error',
+        autoKey
+          ? `Hraje: ${artist} – ${title}. Ruský text k této skladbě jsem nenašel.`
+          : `Text se nepodařilo najít.${failed ? ` Chyby zdrojů: ${failed}.` : ''} `
+            + 'Zkus jiný přepis názvu nebo ho napiš azbukou.',
+        autoKey ? '' : 'error',
       );
-      return;
+      return null;
     }
+    data.autoKey = autoKey;
     render(data);
+    return data;
   } catch (err) {
     showMessage(`Chyba: ${err.message}`, 'error');
+    return null;
   } finally {
     els.go.disabled = false;
     els.go.classList.remove('loading');
     els.lyrics.style.opacity = '';
   }
-});
+}
 
 // ---------- render ----------
 
@@ -439,6 +449,7 @@ const playback = {
 const now = () => (playback.playing ? playback.position + (performance.now() - playback.startedAt) : playback.position);
 
 function setupPlayer(data) {
+  setExternal(false);
   if (!data.synced) return;
   playback.end = data.synced.at(-1).timeMs + 6000;
   els.seek.max = String(playback.end);
@@ -563,6 +574,88 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ---------- follow what the PC is playing (Windows media session) ----------
+
+const APP_LABEL = [[/spotify/i, 'Spotify'], [/chrome/i, 'Chrome'], [/msedge|edge/i, 'Edge'], [/firefox/i, 'Firefox'],
+  [/brave/i, 'Brave'], [/opera/i, 'Opera'], [/music|zune/i, 'Hudba']];
+const appLabel = (app) => APP_LABEL.find(([re]) => re.test(app))?.[1] ?? 'přehrávač';
+
+const auto = { on: false, timer: 0, key: null, busy: false };
+
+function setAuto(on) {
+  auto.on = on;
+  store.set('auto', on);
+  els.auto.setAttribute('aria-pressed', String(on));
+  clearTimeout(auto.timer);
+  if (on) {
+    auto.key = null;
+    pollNowPlaying();
+  } else {
+    setExternal(false);
+  }
+}
+els.auto.addEventListener('click', () => setAuto(!auto.on));
+
+async function pollNowPlaying() {
+  if (!auto.on) return;
+  try {
+    const np = await (await fetch('/api/now-playing')).json();
+    if (!np.available) {
+      setAuto(false);
+      toast('Sledování přehrávání funguje jen ve Windows');
+      return;
+    }
+    await onNowPlaying(np);
+  } catch { /* server restarting — try again */ }
+  auto.timer = setTimeout(pollNowPlaying, document.hidden ? 3000 : 1000);
+}
+
+async function onNowPlaying(np) {
+  const track = np.track;
+  if (!track?.query) return;
+  const key = `${track.app}|${track.artist}|${track.title}`;
+
+  if (key !== auto.key && !auto.busy) {
+    auto.key = key;
+    auto.busy = true;
+    setExternal(false);
+    els.artist.value = track.query.artist;
+    els.title.value = track.query.title;
+    try {
+      await search(track.query.artist, track.query.title, { autoKey: key });
+    } finally {
+      auto.busy = false;
+    }
+    return;
+  }
+
+  // The loaded lyrics belong to the playing track → follow the real position.
+  if (current?.autoKey === key && current.synced && prefs.view === 'lyrics') {
+    setExternal(true, appLabel(track.app));
+    if (track.durationMs > 0) {
+      playback.end = Math.max(track.durationMs, current.synced.at(-1).timeMs + 1000);
+      els.seek.max = String(playback.end);
+      els.duration.textContent = fmtTime(playback.end);
+    }
+    const drift = Math.abs(now() - np.positionMs);
+    if (drift > 350 || np.playing !== playback.playing) {
+      playback.position = np.positionMs;
+      playback.startedAt = performance.now();
+      playback.active = -2;
+    }
+    if (np.playing && !playback.playing) play();
+    else if (!np.playing && playback.playing) pause();
+    if (!np.playing) update(np.positionMs);
+  }
+}
+
+function setExternal(on, label = '') {
+  playback.external = on;
+  els.player.classList.toggle('external', on);
+  els.syncSource.hidden = !on;
+  els.syncSource.textContent = on ? `● Synchronizováno: ${label}` : '';
+}
+
 // ---------- init ----------
 
 const last = store.get('last');
@@ -572,6 +665,7 @@ if (last) {
 }
 document.body.classList.add('no-player');
 applyToggles();
+setAuto(store.get('auto', false));
 
 fetch('/api/status')
   .then((r) => r.json())

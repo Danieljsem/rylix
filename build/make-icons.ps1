@@ -1,5 +1,5 @@
 Add-Type -AssemblyName System.Drawing
-$root = 'C:\path\to\ualyrics'
+$root = 'C:\path\to\Rylix'
 $src = [System.Drawing.Image]::FromFile("$root\build\icon-source.png")
 # Rounded square inside the artwork; everything outside it becomes transparent.
 $x = 100; $y = 108; $w = 1055; $h = 1034; $r = 230

@@ -1,13 +1,17 @@
 import { searchLrclib } from './providers/lrclib.js';
 import { searchGenius } from './providers/genius.js';
 import { latinToCyrillic, hasLatin, stripParenthetical } from './reverse.js';
+import { primaryArtist } from '../nowplaying/clean.js';
 import { titlePrecision } from './match.js';
 import { wordAgreement, flattenLines } from '../validator/index.js';
 
-// Spellings of the query to try: as typed, then Cyrillic guesses if typed in Latin.
+// Spellings of the query to try: as typed, the first of several artists
+// ("A & B" → "A"), then Cyrillic guesses if typed in Latin.
 // A leading "E" is ambiguous (Егор vs. Это), so both readings are tried.
 export function queryVariants({ artist, title }) {
   const variants = [{ artist, title }];
+  const first = primaryArtist(artist);
+  if (first) variants.push({ artist: first, title });
   if (hasLatin(artist) || hasLatin(title)) {
     for (const initialE of ['е', 'э']) {
       const guess = (s) => (hasLatin(s) ? latinToCyrillic(s, { initialE }) : s);

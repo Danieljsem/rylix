@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ualyrics</title>
+  <title>Rylix</title>
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -14,7 +14,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><img class="logo" src="icons/icon-48.png" width="30" height="30" alt=""> <span>ualyrics</span></div>
+    <div class="brand"><img class="logo" src="icons/icon-48.png" width="30" height="30" alt=""> <span>Rylix</span></div>
     <form id="search" class="search" autocomplete="off">
       <input id="artist" name="artist" placeholder="Interpret" aria-label="Interpret" required maxlength="200">
       <input id="title" name="title" placeholder="Název skladby" aria-label="Název skladby" required maxlength="200">
@@ -24,6 +24,9 @@
         <span class="spinner" aria-hidden="true"></span>
       </button>
     </form>
+    <button type="button" id="auto" class="auto-btn" aria-pressed="false" title="Automaticky najít text písničky, která ti hraje (Spotify, YouTube, …)">
+      <span class="dot" aria-hidden="true"></span><span class="auto-label">Sledovat přehrávání</span>
+    </button>
     <span class="hint" id="providers"></span>
   </header>
 
@@ -90,6 +93,7 @@
       <input id="seek" type="range" min="0" max="0" value="0" step="100" aria-label="Posun v čase">
       <span id="duration" class="time">0:00</span>
     </div>
+    <span id="sync-source" class="sync-source" hidden></span>
     <div class="offset" title="Když text předbíhá nebo se opožďuje za hudbou">
       <button type="button" id="offset-minus" class="chip small">−0,5 s</button>
       <span id="offset" class="time">0,0 s</span>

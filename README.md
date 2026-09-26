@@ -1,4 +1,4 @@
-# ualyrics — Lyrics Romanizer
+# Rylix — Lyrics Romanizer
 
 Aplikace, která k zadanému interpretovi a názvu skladby najde originální ruský text (azbuka),
 vyčistí ho, zachová přesnou strukturu (sekce, řádky, opakování) a převede ho do latinky.
@@ -66,7 +66,7 @@ UI             ─ originál | romanizace | kopírovat | zdroj, důvěryhodnost,
 ## 3. Struktura projektu
 
 ```
-ualyrics/
+rylix/
   package.json
   src/
     server.js                 Express: statické UI + /api/lyrics
@@ -251,7 +251,7 @@ posouváním textu podle `synced` časů (Spotify styl).
 
 ## Spuštění
 
-Nejjednodušeji: **dvojklik na `ualyrics.cmd`**, otevře se prohlížeč na http://127.0.0.1:3000.
+Nejjednodušeji: **dvojklik na `rylix.cmd`**, otevře se prohlížeč na http://127.0.0.1:3000.
 
 Z terminálu:
 
