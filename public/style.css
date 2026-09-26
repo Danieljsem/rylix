@@ -676,7 +676,9 @@ html, body { overflow-x: clip; }
 .zoom-val { min-width: 50px; font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* ---------- desktop app (Electron): draggable top bar, room for window buttons ---------- */
-body.desktop .topbar { -webkit-app-region: drag; padding-right: 150px; }
+/* Window buttons (min / max / close, ~138 px) are drawn by Windows at a fixed size, so the room
+   left for them must not shrink or grow with the app scale. */
+body.desktop .topbar { -webkit-app-region: drag; padding-right: calc(150px / var(--zoom)); }
 body.desktop .topbar :is(button, input, form, .zoom, a) { -webkit-app-region: no-drag; }
 
 /* ---------- recognize (Shazam-like) ---------- */

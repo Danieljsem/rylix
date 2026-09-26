@@ -98,10 +98,16 @@ async function createWindow() {
     }
   });
 
-  // DevTools on Ctrl+Shift+I / F12 (the default menu, which also had zoom shortcuts, is removed).
+  // The default menu (with its zoom shortcuts) is removed, so the useful keys are added here:
+  // F12 / Ctrl+Shift+I = DevTools, F5 / Ctrl+R = reload the page.
   win.webContents.on('before-input-event', (e, input) => {
-    if (input.type === 'keyDown' && (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i'))) {
+    if (input.type !== 'keyDown') return;
+    const key = input.key.toLowerCase();
+    if (key === 'f12' || (input.control && input.shift && key === 'i')) {
       win.webContents.toggleDevTools();
+      e.preventDefault();
+    } else if (key === 'f5' || (input.control && !input.shift && key === 'r')) {
+      win.webContents.reloadIgnoringCache();
       e.preventDefault();
     }
   });
