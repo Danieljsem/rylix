@@ -61,3 +61,19 @@ test('now-playing is unavailable outside Windows and never spawns there', () => 
   assert.deepEqual(np.get(), { available: false });
   assert.equal(spawned, false);
 });
+
+test('control: only known actions, Windows only, position sanitized', async () => {
+  const calls = [];
+  const np = createNowPlaying({
+    platform: 'win32',
+    spawnImpl: () => ({ stdout: null, on() {} }),
+    execImpl: (cmd, args, opts, cb) => { calls.push(args); cb(null, 'true\r\n'); },
+  });
+  assert.equal(await np.control('toggle'), true);
+  assert.equal(await np.control('seek', '12345.6'), true);
+  assert.equal(await np.control('rm -rf'), false);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].slice(-4), ['-Action', 'seek', '-PositionMs', '12346']);
+  const linux = createNowPlaying({ platform: 'linux' });
+  assert.equal(await linux.control('toggle'), false);
+});

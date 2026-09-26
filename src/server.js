@@ -115,6 +115,17 @@ export function createServer({
     }
   }
 
+  async function handleControl(req, res) {
+    let body;
+    try {
+      body = await readJson(req);
+    } catch {
+      return send(res, 400, { error: 'bad request' });
+    }
+    if (!['toggle', 'next', 'prev', 'seek'].includes(body.action)) return send(res, 400, { error: 'unknown action' });
+    send(res, 200, { ok: await nowPlaying.control(body.action, body.positionMs) });
+  }
+
   async function handleLookup(req, res) {
     let body;
     try {
@@ -156,6 +167,7 @@ export function createServer({
     if (req.url === '/api/library' || req.url.startsWith('/api/library/')) return handleLibrary(req, res);
     if (req.method === 'GET' && req.url.startsWith('/api/art?')) return handleArt(req, res);
     if (req.method === 'GET' && req.url === '/api/now-playing') return send(res, 200, nowPlaying.get());
+    if (req.method === 'POST' && req.url === '/api/now-playing/control') return handleControl(req, res);
     if (req.method === 'GET' && req.url === '/api/status') {
       return send(res, 200, { genius: Boolean(token) });
     }

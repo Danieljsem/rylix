@@ -1,11 +1,13 @@
 // Knows what the PC is playing right now. Windows only (media session API via
 // PowerShell); elsewhere it simply reports { available: false }.
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { trackQuery } from './clean.js';
 
 const SCRIPT = fileURLToPath(new URL('./windows.ps1', import.meta.url));
+const CONTROL_SCRIPT = fileURLToPath(new URL('./control.ps1', import.meta.url));
+export const CONTROL_ACTIONS = ['toggle', 'next', 'prev', 'seek'];
 const IDLE_STOP_MS = 60_000;
 
 // One JSON line from windows.ps1 → snapshot, or null if the line is not usable.
@@ -53,7 +55,7 @@ export function present(snapshot, at = Date.now()) {
   };
 }
 
-export function createNowPlaying({ platform = process.platform, spawnImpl = spawn } = {}) {
+export function createNowPlaying({ platform = process.platform, spawnImpl = spawn, execImpl = execFile } = {}) {
   let child = null;
   let latest = null;
   let lastAsked = 0;
@@ -105,6 +107,16 @@ export function createNowPlaying({ platform = process.platform, spawnImpl = spaw
       touch();
       if (!latest) return { available: true, starting: true, playing: false, track: null };
       return present(latest);
+    },
+    // Play/pause, next, previous or seek in whatever is playing (media-key equivalent).
+    control(action, positionMs = 0) {
+      if (platform !== 'win32' || !CONTROL_ACTIONS.includes(action)) return Promise.resolve(false);
+      const pos = Math.max(0, Math.round(Number(positionMs) || 0));
+      return new Promise((resolve) => {
+        execImpl('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CONTROL_SCRIPT,
+          '-Action', action, '-PositionMs', String(pos)], { windowsHide: true, timeout: 8000 },
+        (err, stdout) => resolve(!err && String(stdout).trim() === 'true'));
+      });
     },
     stop,
   };

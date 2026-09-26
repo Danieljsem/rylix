@@ -127,20 +127,41 @@
   </div>
 
   <footer id="player" class="player" hidden>
-    <button type="button" id="play" class="play" aria-label="Přehrát">
-      <svg viewBox="0 0 24 24" class="i-play" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-      <svg viewBox="0 0 24 24" class="i-pause" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
-    </button>
-    <div class="timeline">
-      <span id="time" class="time">0:00</span>
-      <input id="seek" type="range" min="0" max="0" value="0" step="100" aria-label="Posun v čase">
-      <span id="duration" class="time">0:00</span>
+    <div class="pl-left">
+      <img id="pl-art" class="pl-art" alt="" hidden>
+      <div class="pl-meta">
+        <div id="pl-title" class="pl-title"></div>
+        <div id="pl-artist" class="pl-artist"></div>
+      </div>
     </div>
-    <span id="sync-source" class="sync-source" hidden></span>
-    <div class="offset" title="Když text předbíhá nebo se opožďuje za hudbou">
-      <button type="button" id="offset-minus" class="chip small">−0,5 s</button>
-      <span id="offset" class="time">0,0 s</span>
-      <button type="button" id="offset-plus" class="chip small">+0,5 s</button>
+
+    <div class="pl-center">
+      <div class="pl-buttons">
+        <button type="button" id="prev" class="pl-icon" aria-label="Předchozí skladba" title="Předchozí skladba" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+        </button>
+        <button type="button" id="play" class="play" aria-label="Přehrát">
+          <svg viewBox="0 0 24 24" class="i-play" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          <svg viewBox="0 0 24 24" class="i-pause" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+        </button>
+        <button type="button" id="next" class="pl-icon" aria-label="Další skladba" title="Další skladba" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+        </button>
+      </div>
+      <div class="timeline">
+        <span id="time" class="time">0:00</span>
+        <input id="seek" type="range" min="0" max="0" value="0" step="100" aria-label="Posun v čase">
+        <span id="duration" class="time">0:00</span>
+      </div>
+    </div>
+
+    <div class="pl-right">
+      <span id="sync-source" class="sync-source" hidden></span>
+      <div class="offset" title="Když text předbíhá nebo se opožďuje za hudbou">
+        <button type="button" id="offset-minus" class="chip small">−0,5 s</button>
+        <span id="offset" class="time">0,0 s</span>
+        <button type="button" id="offset-plus" class="chip small">+0,5 s</button>
+      </div>
     </div>
   </footer>
 

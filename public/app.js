@@ -53,6 +53,11 @@ const els = {
   btnDetails: $('#btn-details'),
   backdrop: $('#backdrop'),
   approveMini: $('#approve-mini'),
+  plArt: $('#pl-art'),
+  plTitle: $('#pl-title'),
+  plArtist: $('#pl-artist'),
+  prev: $('#prev'),
+  next: $('#next'),
   syncSource: $('#sync-source'),
 };
 
@@ -146,8 +151,8 @@ function showMessage(text, kind = '') {
 // ---------- song color (from the cover, like Spotify) ----------
 
 function setSongColor(h, s) {
-  els.stage.style.setProperty('--song-h', String(Math.round(h)));
-  els.stage.style.setProperty('--song-s', `${Math.round(s)}%`);
+  document.body.style.setProperty('--song-h', String(Math.round(h)));
+  document.body.style.setProperty('--song-s', `${Math.round(s)}%`);
 }
 
 function hashHue(text) {
@@ -200,6 +205,9 @@ function applyArtAndColor(data) {
   setSongColor(hashHue(`${data.artist} ${data.title}`), 22);
   els.art.hidden = true;
   els.artFallback.hidden = false;
+  els.plArt.hidden = true;
+  els.plTitle.textContent = data.title;
+  els.plArtist.textContent = data.artist;
   if (!data.art) return;
 
   const img = new Image();
@@ -208,6 +216,8 @@ function applyArtAndColor(data) {
     els.art.src = img.src;
     els.art.hidden = false;
     els.artFallback.hidden = true;
+    els.plArt.src = img.src;
+    els.plArt.hidden = false;
     try {
       const c = colorFromImage(img);
       // Colorful cover → its hue; black-and-white cover → calm slate gray.
@@ -468,7 +478,11 @@ function renderLyrics(data) {
       node.dataset.i = String(i);
       const u = line.text && uncertain.get(normalize(line.text));
       if (u) markUncertain(node, u);
-      node.addEventListener('click', () => seekTo(line.timeMs + playback.offset, { follow: true }));
+      node.addEventListener('click', () => {
+        const ms = line.timeMs + playback.offset;
+        seekTo(ms, { follow: true });
+        if (playback.external) mediaControl('seek', ms);
+      });
       frag.append(node);
     });
   } else {
@@ -716,8 +730,45 @@ for (const type of ['wheel', 'touchmove']) {
 }
 els.resync.addEventListener('click', () => setFollow(true));
 
-els.play.addEventListener('click', () => (playback.playing ? pause() : play()));
-els.seek.addEventListener('input', () => seekTo(Number(els.seek.value), { follow: true }));
+// When synced with Spotify & co., the buttons control that player (like media keys).
+async function mediaControl(action, positionMs) {
+  try {
+    const res = await fetch('/api/now-playing/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, positionMs }),
+    });
+    const { ok } = await res.json();
+    if (!ok && action === 'seek') toast('Přehrávač nepodporuje přetáčení');
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+els.play.addEventListener('click', () => {
+  if (playback.external) {
+    // Optimistic: flip the icon now, the next poll confirms the real state.
+    if (playback.playing) pause(); else play();
+    mediaControl('toggle');
+  } else if (playback.playing) {
+    pause();
+  } else {
+    play();
+  }
+});
+els.prev.addEventListener('click', () => mediaControl('prev'));
+els.next.addEventListener('click', () => mediaControl('next'));
+
+let seekDebounce = 0;
+els.seek.addEventListener('input', () => {
+  const ms = Number(els.seek.value);
+  seekTo(ms, { follow: true });
+  if (playback.external) {
+    clearTimeout(seekDebounce);
+    seekDebounce = setTimeout(() => mediaControl('seek', ms), 250);
+  }
+});
 
 function updateOffsetLabel() {
   const s = playback.offset / 1000;
@@ -736,14 +787,18 @@ document.addEventListener('keydown', (e) => {
   if (!current?.synced || els.player.hidden) return;
   // Typing in the search, or Space on a focused button (it clicks natively).
   if (e.target.closest('input, textarea, button, summary')) return;
+  const jump = (delta) => {
+    const ms = Math.max(0, now() + delta);
+    seekTo(ms, { follow: true });
+    if (playback.external) mediaControl('seek', ms);
+  };
   if (e.code === 'Space') {
     e.preventDefault();
-    if (playback.playing) pause();
-    else play();
+    els.play.click();
   } else if (e.code === 'ArrowLeft') {
-    seekTo(now() - 5000, { follow: true });
+    jump(-5000);
   } else if (e.code === 'ArrowRight') {
-    seekTo(now() + 5000, { follow: true });
+    jump(5000);
   }
 });
 
@@ -825,6 +880,9 @@ async function onNowPlaying(np) {
 function setExternal(on, label = '') {
   playback.external = on;
   els.player.classList.toggle('external', on);
+  els.prev.hidden = !on;
+  els.next.hidden = !on;
+  els.play.title = on ? `Ovládá ${label}` : '';
   els.syncSource.hidden = !on;
   els.syncSource.textContent = on ? `● Synchronizováno: ${label}` : '';
 }

@@ -11,9 +11,6 @@
 
   --song-h: 215;
   --song-s: 18%;
-  --song-1: hsl(var(--song-h) var(--song-s) 27%);
-  --song-2: hsl(calc(var(--song-h) + 28) calc(var(--song-s) + 6%) 20%);
-  --song-3: hsl(calc(var(--song-h) - 24) var(--song-s) 15%);
 
   --line-inactive: rgba(255, 255, 255, 0.46);
   --line-static: rgba(255, 255, 255, 0.93);
@@ -133,6 +130,9 @@ main { padding: 8px 16px calc(var(--player-h) + 24px); max-width: 1400px; margin
 body.no-player main { padding-bottom: 24px; }
 
 .stage {
+  --song-1: hsl(var(--song-h) var(--song-s) 27%);
+  --song-2: hsl(calc(var(--song-h) + 28) calc(var(--song-s) + 6%) 20%);
+  --song-3: hsl(calc(var(--song-h) - 24) var(--song-s) 15%);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -612,3 +612,39 @@ body:is(.lib-open, .details-open):is([data-mode="medium"], [data-mode="narrow"])
 html, body { overflow-x: clip; }
 @media (max-width: 1199px) { .hint { display: none; } }
 .topbar > * { min-width: 0; }
+
+/* ---------- player bar v2: [cover + title] [controls + timeline] [sync + offset] ---------- */
+:root { --player-h: 84px; }
+.player {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 0 16px env(safe-area-inset-bottom, 0px);
+}
+.pl-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pl-art { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; flex: none; }
+.pl-meta { min-width: 0; }
+.pl-title { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-artist { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-center { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.pl-buttons { display: flex; align-items: center; gap: 18px; }
+.play { width: 36px; height: 36px; }
+.play svg { width: 20px; height: 20px; }
+.pl-icon { width: 32px; height: 32px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; border-radius: 50%; }
+.pl-icon:hover { color: #fff; }
+.pl-icon svg { width: 18px; height: 18px; fill: currentColor; }
+.timeline { max-width: none; width: 100%; }
+.pl-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+.sync-source { overflow: hidden; text-overflow: ellipsis; }
+/* Synced with an external player: controls drive that player, so nothing is dimmed. */
+.player.external .play, .player.external #seek { pointer-events: auto; opacity: 1; }
+
+@media (max-width: 1100px) {
+  .player { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto; }
+  .offset .chip { padding: 4px 8px; }
+  .sync-source { display: none; }
+}
+@media (max-width: 860px) {
+  .player { grid-template-columns: minmax(0, 1fr); gap: 4px; padding-block: 6px; }
+  .pl-left, .pl-right { display: none; }
+  .pl-buttons { gap: 12px; }
+}

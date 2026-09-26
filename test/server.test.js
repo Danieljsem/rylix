@@ -75,3 +75,8 @@ test('now-playing endpoint returns the watcher snapshot', async () => {
   assert.equal(body.positionMs, 1234);
   assert.equal(body.track.title, 'Ветер');
 });
+
+test('media control endpoint validates the action', async () => {
+  const bad = await fetch(`${base}/api/now-playing/control`, { method: 'POST', body: JSON.stringify({ action: 'format c:' }) });
+  assert.equal(bad.status, 400);
+});
