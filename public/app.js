@@ -49,6 +49,10 @@ const els = {
   syncBox: $('#sync-box'),
   syncState: $('#sync-state'),
   auto: $('#auto'),
+  btnLibrary: $('#btn-library'),
+  btnDetails: $('#btn-details'),
+  backdrop: $('#backdrop'),
+  approveMini: $('#approve-mini'),
   syncSource: $('#sync-source'),
 };
 
@@ -318,9 +322,12 @@ function updateApproveState() {
     ? 'Tahle verze je v knihovně. Při dalším hledání se načte odtud.'
     : 'Uloží tuhle verzi textu do knihovny. Příště se načte hned a bez hledání.';
   els.unsave.hidden = !saved;
+  els.approveMini.classList.toggle('saved', Boolean(saved));
+  els.approveMini.textContent = saved ? '✓ Uloženo' : '✓ Uložit';
   highlightLibrary(saved?.id);
 }
 
+els.approveMini.addEventListener('click', () => els.approve.click());
 els.approve.addEventListener('click', async () => {
   if (!current || savedEntryFor(current)) return;
   els.approve.disabled = true;
@@ -402,6 +409,7 @@ async function openFromLibrary(id) {
     els.artist.value = data.artist;
     els.title.value = data.title;
     render(data);
+    closeDrawers();
   } catch (err) {
     toast(`Nepodařilo se otevřít: ${err.message}`);
   }
@@ -821,6 +829,58 @@ function setExternal(on, label = '') {
   els.syncSource.textContent = on ? `● Synchronizováno: ${label}` : '';
 }
 
+// ---------- layout: panels like Spotify (wide = both visible, medium = rail + drawer, narrow = drawers) ----------
+
+const layout = {
+  libCollapsed: store.get('libCollapsed', false),
+  detailsHidden: store.get('detailsHidden', false),
+};
+const layoutMode = () => (innerWidth >= 1200 ? 'wide' : innerWidth >= 860 ? 'medium' : 'narrow');
+
+function applyLayout() {
+  const mode = layoutMode();
+  const body = document.body;
+  if (body.dataset.mode !== mode) closeDrawers();
+  body.dataset.mode = mode;
+  const wide = mode === 'wide';
+  body.classList.toggle('lib-collapsed', wide && layout.libCollapsed);
+  body.classList.toggle('details-hidden', wide && layout.detailsHidden);
+  els.btnLibrary.setAttribute('aria-pressed', String(wide ? !layout.libCollapsed : body.classList.contains('lib-open')));
+  els.btnDetails.setAttribute('aria-pressed', String(wide ? !layout.detailsHidden : body.classList.contains('details-open')));
+}
+
+function closeDrawers() {
+  document.body.classList.remove('lib-open', 'details-open');
+}
+
+els.btnLibrary.addEventListener('click', () => {
+  if (layoutMode() === 'wide') {
+    layout.libCollapsed = !layout.libCollapsed;
+    store.set('libCollapsed', layout.libCollapsed);
+  } else {
+    const open = !document.body.classList.contains('lib-open');
+    closeDrawers();
+    document.body.classList.toggle('lib-open', open);
+  }
+  applyLayout();
+});
+els.btnDetails.addEventListener('click', () => {
+  if (layoutMode() === 'wide') {
+    layout.detailsHidden = !layout.detailsHidden;
+    store.set('detailsHidden', layout.detailsHidden);
+  } else {
+    const open = !document.body.classList.contains('details-open');
+    closeDrawers();
+    document.body.classList.toggle('details-open', open);
+  }
+  applyLayout();
+});
+els.backdrop.addEventListener('click', () => { closeDrawers(); applyLayout(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeDrawers(); applyLayout(); }
+});
+addEventListener('resize', applyLayout);
+
 // ---------- init ----------
 
 const last = store.get('last');
@@ -830,7 +890,8 @@ if (last) {
 }
 document.body.classList.add('no-player');
 applyToggles();
-setAuto(store.get('auto', false));
+setAuto(store.get('auto', true));
+applyLayout();
 loadLibrary();
 
 fetch('/api/status')

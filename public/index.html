@@ -14,6 +14,9 @@
 </head>
 <body>
   <header class="topbar">
+    <button type="button" id="btn-library" class="icon-btn" aria-pressed="true" title="Knihovna" aria-label="Knihovna">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16M9 4v16M14 5l5 14"/></svg>
+    </button>
     <div class="brand"><img class="logo" src="icons/icon-48.png" width="30" height="30" alt=""> <span>Rylix</span></div>
     <form id="search" class="search" autocomplete="off">
       <input id="artist" name="artist" placeholder="Interpret" aria-label="Interpret" required maxlength="200">
@@ -28,7 +31,11 @@
       <span class="dot" aria-hidden="true"></span><span class="auto-label">Sledovat přehrávání</span>
     </button>
     <span class="hint" id="providers"></span>
+    <button type="button" id="btn-details" class="icon-btn" aria-pressed="true" title="Detail skladby" aria-label="Detail skladby">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg>
+    </button>
   </header>
+  <div id="backdrop" class="backdrop"></div>
 
   <div class="layout">
     <aside id="library" class="sidebar left" aria-label="Knihovna">
@@ -58,6 +65,7 @@
             <button type="button" class="chip" id="toggle-original" aria-pressed="false" title="Zobrazit azbuku pod řádky">Azbuka</button>
             <button type="button" class="chip" id="toggle-sections" aria-pressed="false" title="Zobrazit názvy sekcí">Sekce</button>
             <button type="button" class="chip solid" id="copy" title="Zkopírovat celý text v latince">Kopírovat</button>
+            <button type="button" class="chip approve-mini" id="approve-mini" title="Schválit a uložit do knihovny">✓ Uložit</button>
           </div>
         </div>
 
