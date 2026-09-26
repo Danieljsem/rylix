@@ -6,8 +6,8 @@
   --border: #2c2c31;
   --text: #f4f4f5;
   --muted: #a1a1aa;
-  --accent: #f5b41f;
-  --accent-ink: #141414;
+  --accent: #1ed760;
+  --accent-ink: #000000;
 
   --song-h: 215;
   --song-s: 18%;
@@ -186,8 +186,8 @@ body.no-player .stage { height: calc(100dvh - var(--topbar-h) - 40px); }
 .chip.small { padding: 4px 10px; font-size: 12px; }
 
 .badge { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
-.badge.high { background: rgba(62, 207, 142, 0.22); color: #7ff0bd; }
-.badge.medium { background: rgba(245, 180, 31, 0.22); color: #ffd36b; }
+.badge.high { background: rgba(30, 215, 96, 0.22); color: #6ff5a0; }
+.badge.medium { background: rgba(255, 255, 255, 0.16); color: #e4e4e7; }
 .badge.low { background: rgba(242, 85, 90, 0.25); color: #ff9a9d; }
 
 /* ---------- messages ---------- */
@@ -278,9 +278,9 @@ body.no-player .stage { height: calc(100dvh - var(--topbar-h) - 40px); }
 .grid-body { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; padding: 8px 0 16px; }
 .cell { padding: 3px 18px; min-height: 1.6em; font-size: 16px; font-weight: 600; }
 .cell.orig { border-right: 1px solid rgba(255, 255, 255, 0.1); }
-.cell.section { padding-top: 18px; font-weight: 800; color: #ffd36b; font-size: 13px; }
+.cell.section { padding-top: 18px; font-weight: 800; color: var(--accent); font-size: 13px; }
 .cell.gap { min-height: 0.6em; }
-.cell.uncertain { background: rgba(245, 180, 31, 0.16); cursor: help; }
+.cell.uncertain { background: rgba(30, 215, 96, 0.12); cursor: help; }
 
 /* ---------- info ---------- */
 .info { margin-top: 16px; background: var(--panel); border-radius: 12px; padding: 4px 16px; }
