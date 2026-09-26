@@ -30,8 +30,9 @@ const lineTexts = (c) => flattenLines(c).map((l) => l.text);
 // Two sources found the same song if their texts agree at least half-way.
 export const sameSong = (a, b) => wordAgreement(lineTexts(a), lineTexts(b)) >= 0.5;
 
-// Order matters: each provider can hand the exact (usually Cyrillic) names it found
-// to the next one. One failing provider never stops the others.
+// Both providers are asked at the same time; only if one of them finds nothing does it get
+// a second try with the exact (usually Cyrillic) names the other one found.
+// One failing provider never stops the other.
 export async function searchAll(query, options = {}) {
   const variants = queryVariants(query);
   const errors = [];
@@ -47,9 +48,9 @@ export async function searchAll(query, options = {}) {
   const lrclibSearch = (queries) => run('lrclib', () => searchLrclib(queries, options));
   const geniusSearch = (queries) => run('genius', () => searchGenius(queries, options));
 
-  let lrclib = await lrclibSearch(variants);
-  let genius = await geniusSearch([...variants, ...namesOf(lrclib)]);
-  if (lrclib.length === 0 && genius.length > 0) lrclib = await lrclibSearch(namesOf(genius));
+  let [lrclib, genius] = await Promise.all([lrclibSearch(variants), geniusSearch(variants)]);
+  if (genius.length === 0 && lrclib.length > 0) genius = await geniusSearch(namesOf(lrclib));
+  else if (lrclib.length === 0 && genius.length > 0) lrclib = await lrclibSearch(namesOf(genius));
 
   // Different songs (e.g. two songs with "осень" in the title): keep the one whose title
   // fits the query best, ask the other provider again with its exact names.

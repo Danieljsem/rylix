@@ -80,3 +80,20 @@ test('media control endpoint validates the action', async () => {
   const bad = await fetch(`${base}/api/now-playing/control`, { method: 'POST', body: JSON.stringify({ action: 'format c:' }) });
   assert.equal(bad.status, 400);
 });
+
+test('lru keeps the newest entries within its cap', async () => {
+  const { lru } = await import('../src/server.js');
+  const c = lru(2);
+  c.set('a', 1); c.set('b', 2); c.get('a'); c.set('c', 3);
+  assert.equal(c.get('b'), undefined, 'least recently used is evicted');
+  assert.equal(c.get('a'), 1);
+  assert.equal(c.size, 2);
+});
+
+test('the same query asked twice at once runs one lookup', async () => {
+  const before = lookups;
+  const [a, b] = await Promise.all([post({ artist: 'Параллель', title: 'Раз' }), post({ artist: 'Параллель', title: 'Раз' })]);
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  assert.equal(lookups - before, 1);
+});

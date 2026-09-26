@@ -13,5 +13,8 @@
   },
   "dependencies": {
     "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

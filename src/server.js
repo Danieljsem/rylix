@@ -25,6 +25,26 @@ const MAX_ART_BYTES = 5 * 1024 * 1024;
 // image host is allowed, so this never becomes an open proxy.
 const ART_HOSTS = new Set(['images.genius.com']);
 
+// Map with a size cap: the oldest entry goes when it is full.
+export function lru(max) {
+  const map = new Map();
+  return {
+    get(key) {
+      if (!map.has(key)) return undefined;
+      const value = map.get(key);
+      map.delete(key);
+      map.set(key, value);
+      return value;
+    },
+    set(key, value) {
+      map.delete(key);
+      map.set(key, value);
+      if (map.size > max) map.delete(map.keys().next().value);
+    },
+    get size() { return map.size; },
+  };
+}
+
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
@@ -66,7 +86,9 @@ export function createServer({
   nowPlaying = createNowPlaying(),
   library = createLibrary({ file: LIBRARY_FILE }),
 } = {}) {
-  const cache = new Map();
+  const cache = lru(300);
+  const artCache = lru(150);
+  const inFlight = new Map(); // same query asked twice at once → one lookup
 
   async function handleLibrary(req, res) {
     const id = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice('/api/library'.length).replace(/^\//, ''));
@@ -102,12 +124,18 @@ export function createServer({
   async function handleArt(req, res) {
     const target = new URL(req.url, 'http://x').searchParams.get('u');
     if (!isAllowedArtUrl(target)) return send(res, 400, { error: 'bad art url' });
+    const cached = artCache.get(target);
+    if (cached) {
+      res.writeHead(200, { 'Content-Type': cached.type, 'Cache-Control': 'max-age=86400' });
+      return res.end(cached.body);
+    }
     try {
       const upstream = await fetchArt(target);
       const type = upstream.headers.get('content-type') ?? '';
       if (!upstream.ok || !type.startsWith('image/')) return send(res, 502, { error: 'art unavailable' });
       const body = Buffer.from(await upstream.arrayBuffer());
       if (body.length > MAX_ART_BYTES) return send(res, 502, { error: 'art too large' });
+      artCache.set(target, { type, body });
       res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'max-age=86400' });
       res.end(body);
     } catch {
@@ -153,7 +181,12 @@ export function createServer({
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) return send(res, 200, hit.result);
 
     try {
-      const result = await lookup({ artist, title }, { token });
+      let pending = inFlight.get(key);
+      if (!pending) {
+        pending = lookup({ artist, title }, { token }).finally(() => inFlight.delete(key));
+        inFlight.set(key, pending);
+      }
+      const result = await pending;
       if (result.found) cache.set(key, { at: Date.now(), result });
       send(res, 200, result);
     } catch (err) {
