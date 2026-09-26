@@ -18,6 +18,7 @@
 
   --font: "Figtree", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   --topbar-h: 64px;
+  --zoom: 1; /* app scale (zoom on <html>); viewport-sized boxes divide by it */
   --player-h: 76px;
   color-scheme: dark;
 }
@@ -137,14 +138,14 @@ body.no-player main { padding-bottom: 24px; }
   isolation: isolate;
   overflow: hidden;
   border-radius: 16px;
-  height: calc(100dvh - var(--topbar-h) - var(--player-h) - 40px);
+  height: calc(100dvh / var(--zoom) - var(--topbar-h) - var(--player-h) - 40px);
   min-height: 420px;
   display: flex;
   flex-direction: column;
   background: var(--song-1);
   transition: background-color 0.8s ease;
 }
-body.no-player .stage { height: calc(100dvh - var(--topbar-h) - 40px); }
+body.no-player .stage { height: calc(100dvh / var(--zoom) - var(--topbar-h) - 40px); }
 
 /* Slow drifting color fields, tinted by the song. */
 .aura { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
@@ -403,9 +404,9 @@ body.no-player main { padding-bottom: 0; }
   grid-template-columns: 280px minmax(0, 1fr) 320px;
   gap: 8px;
   padding: 0 8px 8px;
-  height: calc(100dvh - var(--topbar-h) - var(--player-h));
+  height: calc(100dvh / var(--zoom) - var(--topbar-h) - var(--player-h));
 }
-body.no-player .layout { height: calc(100dvh - var(--topbar-h)); }
+body.no-player .layout { height: calc(100dvh / var(--zoom) - var(--topbar-h)); }
 .stage, body.no-player .stage { height: 100%; min-height: 0; }
 
 .sidebar {
@@ -573,7 +574,7 @@ body[data-mode="medium"].lib-open .sidebar.left {
   top: calc(var(--topbar-h) + 4px);
   bottom: calc(var(--player-h) + 8px);
   z-index: 40;
-  width: min(340px, calc(100vw - 32px));
+  width: min(340px, calc(100vw / var(--zoom) - 32px));
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   transition: transform 0.25s ease;
 }
@@ -656,3 +657,10 @@ html, body, button, a, summary, [role="tab"], .lib-item, .lyrics.synced .line, i
 }
 input:not([type="range"]), textarea { cursor: text; }
 button:disabled { cursor: url("icons/cursor-32.png") 1 1, not-allowed; }
+
+/* ---------- app scale control (like Spotify's zoom) ---------- */
+.zoom { display: inline-flex; align-items: center; height: 36px; border-radius: 999px; background: #1a1a1e; flex: none; }
+.zoom button { border: 0; background: transparent; color: var(--muted); height: 36px; font-weight: 800; }
+.zoom button:hover { color: #fff; }
+.zoom-btn { width: 32px; font-size: 18px; line-height: 1; }
+.zoom-val { min-width: 50px; font-size: 12px; font-variant-numeric: tabular-nums; }

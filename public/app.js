@@ -906,7 +906,11 @@ const layout = {
   libCollapsed: store.get('libCollapsed', false),
   detailsHidden: store.get('detailsHidden', false),
 };
-const layoutMode = () => (innerWidth >= 1200 ? 'wide' : innerWidth >= 860 ? 'medium' : 'narrow');
+// Layout decisions use the width the app really has at the current scale.
+const layoutMode = () => {
+  const w = innerWidth / appZoom;
+  return w >= 1200 ? 'wide' : w >= 860 ? 'medium' : 'narrow';
+};
 
 function applyLayout() {
   const mode = layoutMode();
@@ -952,6 +956,44 @@ document.addEventListener('keydown', (e) => {
 });
 addEventListener('resize', applyLayout);
 
+// ---------- app scale (zoom), remembered; auto-picked on small effective screens ----------
+
+const ZOOM_STEPS = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+let appZoom = 1;
+
+// E.g. 2560×1440 at 200 % Windows scaling = 1280 px of room: pick a smaller scale so all panels fit.
+function autoZoom() {
+  const fit = innerWidth / 1500;
+  if (fit >= 1) return 1;
+  return [...ZOOM_STEPS].reverse().find((z) => z <= fit) ?? ZOOM_STEPS[0];
+}
+
+function applyZoom(z, { remember = false } = {}) {
+  appZoom = z;
+  document.documentElement.style.zoom = String(z);
+  document.documentElement.style.setProperty('--zoom', String(z));
+  $('#zoom-val').textContent = `${Math.round(z * 100)} %`;
+  if (remember) store.set('zoom', z);
+  applyLayout();
+}
+
+function stepZoom(dir) {
+  const i = ZOOM_STEPS.findIndex((z) => Math.abs(z - appZoom) < 0.001);
+  const next = ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i < 0 ? 4 : i) + dir))];
+  applyZoom(next, { remember: true });
+  toast(`Měřítko ${Math.round(next * 100)} %`);
+}
+
+$('#zoom-out').addEventListener('click', () => stepZoom(-1));
+$('#zoom-in').addEventListener('click', () => stepZoom(1));
+$('#zoom-val').addEventListener('click', () => { applyZoom(1, { remember: true }); toast('Měřítko 100 %'); });
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  if (e.key === '+' || e.key === '=') { e.preventDefault(); stepZoom(1); }
+  else if (e.key === '-') { e.preventDefault(); stepZoom(-1); }
+  else if (e.key === '0') { e.preventDefault(); applyZoom(1, { remember: true }); }
+});
+
 // ---------- init ----------
 
 const last = store.get('last');
@@ -962,7 +1004,7 @@ if (last) {
 document.body.classList.add('no-player');
 applyToggles();
 setAuto(store.get('auto', true));
-applyLayout();
+applyZoom(store.get('zoom', null) ?? autoZoom());
 loadLibrary();
 
 fetch('/api/status')
