@@ -153,15 +153,35 @@ test('provider failure is reported, others still work; no token → Genius skipp
   assert.deepEqual(noToken.candidates, []);
 });
 
-test('non-Cyrillic and instrumental LRCLIB entries are ignored', async () => {
+test('LRCLIB: romanized duplicate loses to the Cyrillic original; instrumental ignored', async () => {
   const fetch = fakeFetch([
     ['lrclib.net/api/search', () => json([
-      lrclibEntry({ plainLyrics: 'Only latin text' }),
-      lrclibEntry({ instrumental: true, plainLyrics: null }),
+      lrclibEntry({ id: 7, plainLyrics: 'Teplyy veter nad rekoy\nYel u doma' }),
+      lrclibEntry({ id: 8, instrumental: true, plainLyrics: null }),
+      lrclibEntry({ id: 9 }),
     ])],
   ]);
   const { candidates } = await searchAll({ artist: 'Тестовая Группа', title: 'Ветер' }, { fetch });
-  assert.deepEqual(candidates, []);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].source.url, 'https://lrclib.net/api/get/9');
+});
+
+test('songs in other languages are found and shown as is (no romanization)', async () => {
+  const fetch = fakeFetch([
+    ['lrclib.net/api/search', () => json([lrclibEntry({
+      artistName: 'Vymyšlená Kapela', trackName: 'Ranní vítr',
+      plainLyrics: 'Ranní vítr fouká\nNad řekou tiše\n\nRanní vítr fouká',
+      syncedLyrics: '[00:02.00]Ranní vítr fouká\n[00:05.00]Nad řekou tiše',
+    })])],
+  ]);
+  const r = await lookupLyrics({ artist: 'Vymyslena Kapela', title: 'Ranni vitr' }, { fetch });
+  assert.equal(r.found, true);
+  assert.equal(r.language, 'other');
+  assert.equal(r.romanize, false);
+  assert.deepEqual(r.romanized, r.original);
+  assert.equal(r.text.romanized, r.text.original);
+  assert.deepEqual(r.synced.map((l) => l.romanized), ['Ranní vítr fouká', 'Nad řekou tiše']);
+  assert.equal(r.stats.originalLines, 3);
 });
 
 test('nothing found → found: false', async () => {

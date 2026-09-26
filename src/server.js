@@ -6,8 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lookupLyrics } from './pipeline.js';
 import { createNowPlaying } from './nowplaying/index.js';
+import { createLibrary } from './library/index.js';
 
 const PUBLIC_DIR = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
+const LIBRARY_FILE = fileURLToPath(new URL('../data/library.json', import.meta.url));
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -28,11 +30,11 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-async function readJson(req) {
+async function readJson(req, maxChars = 10_000) {
   let data = '';
   for await (const chunk of req) {
     data += chunk;
-    if (data.length > 10_000) throw new Error('body too large');
+    if (data.length > maxChars) throw new Error('body too large');
   }
   return JSON.parse(data || '{}');
 }
@@ -62,8 +64,40 @@ export function createServer({
   lookup = lookupLyrics,
   fetchArt = (url) => fetch(url, { redirect: 'error' }),
   nowPlaying = createNowPlaying(),
+  library = createLibrary({ file: LIBRARY_FILE }),
 } = {}) {
   const cache = new Map();
+
+  async function handleLibrary(req, res) {
+    const id = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice('/api/library'.length).replace(/^\//, ''));
+    try {
+      if (req.method === 'GET' && !id) return send(res, 200, { entries: await library.list() });
+      if (req.method === 'GET') {
+        const entry = await library.get(id);
+        return entry ? send(res, 200, { ...entry, fromLibrary: true }) : send(res, 404, { error: 'not found' });
+      }
+      if (req.method === 'DELETE' && id) {
+        return (await library.remove(id)) ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not found' });
+      }
+      if (req.method === 'POST' && !id) {
+        let body;
+        try {
+          body = await readJson(req, 2_000_000);
+        } catch {
+          return send(res, 400, { error: 'Neplatný požadavek.' });
+        }
+        const { result, queries = [] } = body;
+        if (!result?.found || !result.original?.sections || !result.romanized?.sections) {
+          return send(res, 400, { error: 'Chybí text k uložení.' });
+        }
+        return send(res, 200, await library.save(result, { queries: queries.slice(0, 10) }));
+      }
+      send(res, 405, { error: 'method not allowed' });
+    } catch (err) {
+      console.error('library failed:', err);
+      send(res, 500, { error: 'Knihovnu se nepodařilo uložit.' });
+    }
+  }
 
   async function handleArt(req, res) {
     const target = new URL(req.url, 'http://x').searchParams.get('u');
@@ -95,6 +129,14 @@ export function createServer({
       return send(res, 400, { error: 'Příliš dlouhý dotaz.' });
     }
 
+    // An approved (saved) version always wins over a fresh search.
+    try {
+      const saved = await library.findByQuery({ artist, title });
+      if (saved) return send(res, 200, { ...saved, fromLibrary: true });
+    } catch (err) {
+      console.error('library lookup failed:', err);
+    }
+
     const key = `${artist}\u0000${title}`.toLowerCase();
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) return send(res, 200, hit.result);
@@ -111,6 +153,7 @@ export function createServer({
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api/lyrics') return handleLookup(req, res);
+    if (req.url === '/api/library' || req.url.startsWith('/api/library/')) return handleLibrary(req, res);
     if (req.method === 'GET' && req.url.startsWith('/api/art?')) return handleArt(req, res);
     if (req.method === 'GET' && req.url === '/api/now-playing') return send(res, 200, nowPlaying.get());
     if (req.method === 'GET' && req.url === '/api/status') {

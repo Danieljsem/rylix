@@ -1,6 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from '../src/server.js';
+import { createLibrary } from '../src/library/index.js';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 let server;
 let base;
@@ -9,6 +12,7 @@ let lookups = 0;
 before(async () => {
   server = createServer({
     token: null,
+    library: createLibrary({ file: path.join(tmpdir(), `rylix-test-${process.pid}`, 'library.json') }),
     nowPlaying: { get: () => ({ available: true, playing: true, track: { title: 'Ветер' }, positionMs: 1234 }) },
     lookup: async ({ artist, title }) => {
       lookups++;

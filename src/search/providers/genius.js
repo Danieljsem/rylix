@@ -1,6 +1,5 @@
 // Genius — API for search (needs GENIUS_TOKEN), lyrics come from the song page.
 import { parseLyrics } from '../../parser/index.js';
-import { isOriginalCyrillic } from '../../romanizer/index.js';
 import { extractGeniusLyrics } from '../../extractor/genius.js';
 import { matchScore, titlePrecision } from '../match.js';
 
@@ -102,7 +101,7 @@ export async function searchGenius(queries, { fetch: fetchImpl = fetch, token } 
   const page = await fetchImpl(song.url, { headers: PAGE_HEADERS });
   if (!page.ok) throw new Error(`Genius page HTTP ${page.status}`);
   const text = extractGeniusLyrics(await page.text());
-  if (!text || !isOriginalCyrillic(text)) return [];
+  if (!text) return [];
 
   return [{
     artist: song.primary_artist?.name ?? queries[0].artist,

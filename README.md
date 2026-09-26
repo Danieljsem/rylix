@@ -257,7 +257,7 @@ Z terminálu:
 
 ```bash
 npm install
-npm test          # 54 testů, bez sítě
+npm test          # 72 testů, bez sítě
 npm start         # http://127.0.0.1:3000
 ```
 
@@ -270,6 +270,11 @@ GENIUS_TOKEN=...
 Bez tokenu aplikace funguje jen s LRCLIB (bez označení sekcí a bez křížové kontroly).
 
 ## Ovládání
+
+- **Sledovat přehrávání:** Rylix čte z Windows, co právě hraje (Spotify, YouTube v prohlížeči, …) — stejná data jako ovládání médií u hlasitosti. Nic se neposílá do Spotify ani se nečte účet. Při změně skladby se text sám najde a karaoke jede podle skutečné pozice v přehrávači.
+- **Jazyky:** ruština, ukrajinština (oficiální norma KMU 2010) a běloruština se převádí do latinky; ostatní jazyky (čeština, angličtina, …) se zobrazí beze změny, časování funguje i u nich.
+- **Knihovna (vlevo):** schválené texty uložené na tomto PC v `data/library.json` (mimo git). Uložená verze má přednost před novým hledáním.
+- **Detail (vpravo):** obal, **Schválit a uložit**, stav časování (ruční synchronizace připravujeme).
 
 - **Vedle sebe:** originál a latinka řádek po řádku. Zvýrazněné řádky se mezi zdroji liší, po najetí myší ukážou variantu.
 - **Jen latinka:** čistý text na čtení / zpívání.

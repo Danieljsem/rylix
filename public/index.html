@@ -30,58 +30,93 @@
     <span class="hint" id="providers"></span>
   </header>
 
-  <main>
-    <section id="stage" class="stage">
-      <div class="aura" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="layout">
+    <aside id="library" class="sidebar left" aria-label="Knihovna">
+      <div class="side-head">
+        <h2>Knihovna</h2>
+        <span id="lib-count" class="count"></span>
+      </div>
+      <input id="lib-filter" class="side-filter" placeholder="Hledat v knihovně" aria-label="Hledat v knihovně" autocomplete="off">
+      <ul id="lib-list" class="lib-list"></ul>
+      <p id="lib-empty" class="side-empty">Schválené texty se ukážou tady. Uložíš je tlačítkem <b>Schválit a uložit</b> vpravo.</p>
+    </aside>
 
-      <div id="now" class="now" hidden>
-        <img id="art" class="art" alt="" hidden>
-        <div class="art art-fallback" id="art-fallback" aria-hidden="true">♪</div>
-        <div class="now-text">
-          <h1 id="song-title"></h1>
-          <p><span id="song-artist"></span> <span id="badge" class="badge"></span></p>
-        </div>
-        <div class="now-actions">
-          <div class="seg" role="tablist" aria-label="Zobrazení">
-            <button type="button" class="seg-btn active" data-view="lyrics">Text</button>
-            <button type="button" class="seg-btn" data-view="compare">Porovnání</button>
+    <main>
+      <section id="stage" class="stage">
+        <div class="aura" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <div id="now" class="now" hidden>
+          <div class="now-text">
+            <h1 id="song-title"></h1>
+            <p><span id="song-artist"></span> <span id="badge" class="badge"></span></p>
           </div>
-          <button type="button" class="chip" id="toggle-original" aria-pressed="false" title="Zobrazit azbuku pod řádky">Azbuka</button>
-          <button type="button" class="chip" id="toggle-sections" aria-pressed="false" title="Zobrazit názvy sekcí">Sekce</button>
-          <button type="button" class="chip solid" id="copy" title="Zkopírovat celý text v latince">Kopírovat</button>
+          <div class="now-actions">
+            <div class="seg" role="tablist" aria-label="Zobrazení">
+              <button type="button" class="seg-btn active" data-view="lyrics">Text</button>
+              <button type="button" class="seg-btn" data-view="compare">Porovnání</button>
+            </div>
+            <button type="button" class="chip" id="toggle-original" aria-pressed="false" title="Zobrazit azbuku pod řádky">Azbuka</button>
+            <button type="button" class="chip" id="toggle-sections" aria-pressed="false" title="Zobrazit názvy sekcí">Sekce</button>
+            <button type="button" class="chip solid" id="copy" title="Zkopírovat celý text v latince">Kopírovat</button>
+          </div>
+        </div>
+
+        <div id="message" class="message" hidden></div>
+        <div id="warnings" class="warnings"></div>
+
+        <div id="lyrics" class="lyrics" tabindex="-1">
+          <div id="lyrics-inner" class="lyrics-inner">
+            <p class="line welcome">Napiš interpreta a název skladby.</p>
+            <p class="line welcome">Azbukou i latinkou,</p>
+            <p class="line welcome">text se přepíše řádek po řádku.</p>
+          </div>
+        </div>
+
+        <div id="compare" class="compare" hidden>
+          <div class="compare-grid">
+            <div class="col-head">Originál</div>
+            <div class="col-head">Romanizace</div>
+            <div id="grid-body" class="grid-body"></div>
+          </div>
+        </div>
+
+        <button type="button" id="resync" class="resync" hidden>↻ Synchronizovat</button>
+      </section>
+    </main>
+
+    <aside id="details" class="sidebar right" aria-label="Detail skladby">
+      <div class="cover">
+        <img id="art" class="cover-img" alt="" hidden>
+        <div id="art-fallback" class="cover-fallback" aria-hidden="true">
+          <img src="icons/icon-256.png" alt="" width="96" height="96">
         </div>
       </div>
+      <h2 id="side-title" class="side-title">Zatím nic</h2>
+      <p id="side-artist" class="side-artist">Vyhledej skladbu nebo zapni Sledovat přehrávání.</p>
 
-      <div id="message" class="message" hidden></div>
-      <div id="warnings" class="warnings"></div>
-
-      <div id="lyrics" class="lyrics" tabindex="-1">
-        <div id="lyrics-inner" class="lyrics-inner">
-          <p class="line welcome">Napiš interpreta a název skladby.</p>
-          <p class="line welcome">Azbukou i latinkou,</p>
-          <p class="line welcome">text se přepíše řádek po řádku.</p>
-        </div>
+      <div id="approve-box" class="approve-box" hidden>
+        <button type="button" id="approve" class="approve">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+          <span>Schválit a uložit</span>
+        </button>
+        <p id="approve-note" class="side-note">Uloží tuhle verzi textu do knihovny. Příště se načte hned a bez hledání.</p>
+        <button type="button" id="unsave" class="link-btn" hidden>Odebrat z knihovny</button>
       </div>
 
-      <div id="compare" class="compare" hidden>
-        <div class="compare-grid">
-          <div class="col-head">Originál</div>
-          <div class="col-head">Romanizace</div>
-          <div id="grid-body" class="grid-body"></div>
-        </div>
-      </div>
+      <section id="sync-box" class="side-section" hidden>
+        <h3>Časování</h3>
+        <p id="sync-state" class="side-note"></p>
+        <button type="button" class="side-btn" disabled title="Připravujeme">Synchronizovat ručně</button>
+        <p class="side-note soon">Brzy: ruční nastavení časů pro texty bez synchronizace.</p>
+      </section>
 
-      <button type="button" id="resync" class="resync" hidden>↻ Synchronizovat</button>
-    </section>
-
-    <details id="info" class="info" hidden>
-      <summary>Info o zdroji a kontrole</summary>
-      <dl class="stats" id="stats"></dl>
-      <div class="info-actions">
-        <button type="button" class="chip" id="copy-original">Kopírovat originál</button>
-      </div>
-    </details>
-  </main>
+      <details id="info" class="side-section info" hidden>
+        <summary>Zdroj a kontrola</summary>
+        <dl class="stats" id="stats"></dl>
+        <button type="button" class="side-btn" id="copy-original">Kopírovat originál</button>
+      </details>
+    </aside>
+  </div>
 
   <footer id="player" class="player" hidden>
     <button type="button" id="play" class="play" aria-label="Přehrát">

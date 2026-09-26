@@ -89,3 +89,41 @@ test('cyrillicShare tells original lyrics from romanized ones', async () => {
   assert.equal(isOriginalCyrillic('Пой со мной всю ночь, baby'), true);
   assert.equal(cyrillicShare('123 !!!'), 0);
 });
+
+test('Ukrainian (official KMU 2010): г→h, и→y, і→i, iotated letters by position, ь and apostrophe dropped', async () => {
+  const { romanizeLine: r } = await import('../src/romanizer/index.js');
+  assert.equal(r('Гора', 'uk'), 'Hora');
+  assert.equal(r('Згадка', 'uk'), 'Zghadka');
+  assert.equal(r('Їжак', 'uk'), 'Yizhak');
+  assert.equal(r('Мої', 'uk'), 'Moi');
+  assert.equal(r('Юнак і яблуко', 'uk'), 'Yunak i yabluko');
+  assert.equal(r('Мрія', 'uk'), 'Mriia');
+  assert.equal(r("м'ята", 'uk'), 'miata');
+  assert.equal(r('Сіль', 'uk'), 'Sil');
+  assert.equal(r('Єнот, сміється', 'uk'), 'Yenot, smiietsia');
+  assert.equal(r('Край', 'uk'), 'Krai');
+});
+
+test('Belarusian (practical): г→h, ў→w, е→ye after vowels, ь→apostrophe', async () => {
+  const { romanizeLine: r } = await import('../src/romanizer/index.js');
+  assert.equal(r('Воўк', 'be'), 'Vowk');
+  assert.equal(r('Горад', 'be'), 'Horad');
+  assert.equal(r('Моё неба', 'be'), 'Moyo neba');
+  assert.equal(r('Ель і соль', 'be'), "Yel' i sol'");
+  assert.equal(r("п'е", 'be'), 'pye');
+});
+
+test('detectLanguage tells ru / uk / be / other', async () => {
+  const { detectLanguage } = await import('../src/romanizer/index.js');
+  assert.equal(detectLanguage('Тёплый ветер над рекой, съезд у дома'), 'ru');
+  assert.equal(detectLanguage('Мрія їде додому, і сміється'), 'uk');
+  assert.equal(detectLanguage('Воўк ідзе па лесе, і вецер'), 'be');
+  assert.equal(detectLanguage('Ranní vítr fouká nad řekou'), 'other');
+  assert.equal(detectLanguage('Hello world, just a test'), 'other');
+});
+
+test('romanizeLyrics leaves other languages untouched', async () => {
+  const { romanizeLyrics } = await import('../src/romanizer/index.js');
+  const s = { sections: [{ name: 'Refrén', lines: ['Ranní vítr', 'Ranní vítr'] }] };
+  assert.deepEqual(romanizeLyrics(s, 'other'), s);
+});

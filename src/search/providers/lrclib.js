@@ -13,8 +13,12 @@ async function getJson(fetchImpl, params) {
 }
 
 function pickBest(results, { artist, title }) {
-  return results
-    .filter((r) => !r.instrumental && r.plainLyrics && isOriginalCyrillic(r.plainLyrics))
+  let usable = results.filter((r) => !r.instrumental && r.plainLyrics);
+  // A Cyrillic song is sometimes stored a second time already romanized: prefer the original.
+  const cyrillic = usable.filter((r) => isOriginalCyrillic(r.plainLyrics));
+  const matching = (list) => list.filter((r) => Math.min(matchScore(artist, r.artistName), matchScore(title, r.trackName)) >= 0.5);
+  if (matching(cyrillic).length > 0) usable = cyrillic;
+  return usable
     .map((r) => ({
       r,
       score: Math.min(matchScore(artist, r.artistName), matchScore(title, r.trackName)),

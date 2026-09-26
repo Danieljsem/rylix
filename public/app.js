@@ -36,6 +36,18 @@ const els = {
   offsetMinus: $('#offset-minus'),
   offsetPlus: $('#offset-plus'),
   toast: $('#toast'),
+  libList: $('#lib-list'),
+  libFilter: $('#lib-filter'),
+  libCount: $('#lib-count'),
+  libEmpty: $('#lib-empty'),
+  sideTitle: $('#side-title'),
+  sideArtist: $('#side-artist'),
+  approveBox: $('#approve-box'),
+  approve: $('#approve'),
+  approveNote: $('#approve-note'),
+  unsave: $('#unsave'),
+  syncBox: $('#sync-box'),
+  syncState: $('#sync-state'),
   auto: $('#auto'),
   syncSource: $('#sync-source'),
 };
@@ -46,6 +58,14 @@ const REASON_LABEL = {
   'missing in another source': 'Tento řádek jiný zdroj nemá',
 };
 const PROVIDER_LABEL = { lrclib: 'LRCLIB', genius: 'Genius' };
+const LANGUAGE_LABEL = {
+  ru: 'Ruština → latinka',
+  uk: 'Ukrajinština → latinka',
+  be: 'Běloruština → latinka',
+  other: 'Bez převodu (není azbuka)',
+};
+// Results saved before language support have no flag: they were all Russian.
+const isRomanized = (data) => data?.romanize !== false;
 
 const store = {
   get(key, fallback = null) {
@@ -206,6 +226,7 @@ els.form.addEventListener('submit', (e) => {
 // Returns the result (or null). `autoKey` ties the result to the track that is playing.
 async function search(artist, title, { autoKey = null } = {}) {
   store.set('last', { artist, title });
+  lastQuery = { artist, title };
   els.go.disabled = true;
   els.go.classList.add('loading');
   els.lyrics.style.opacity = '0.45';
@@ -223,7 +244,7 @@ async function search(artist, title, { autoKey = null } = {}) {
       const failed = data.errors?.map((x) => `${PROVIDER_LABEL[x.provider] ?? x.provider}: ${x.message}`).join(', ');
       showMessage(
         autoKey
-          ? `Hraje: ${artist} – ${title}. Ruský text k této skladbě jsem nenašel.`
+          ? `Hraje: ${artist} – ${title}. Text k této skladbě jsem nenašel.`
           : `Text se nepodařilo najít.${failed ? ` Chyby zdrojů: ${failed}.` : ''} `
             + 'Zkus jiný přepis názvu nebo ho napiš azbukou.',
         autoKey ? '' : 'error',
@@ -259,6 +280,7 @@ function render(data) {
     ? `Porovnáno s: ${data.alternatives.map((a) => `${PROVIDER_LABEL[a.provider] ?? a.provider} (${Math.round(a.agreement * 100)} %)`).join(', ')}`
     : 'Nalezeno jen v jednom zdroji';
   applyArtAndColor(data);
+  renderSide(data);
 
   renderWarnings(data);
   renderLyrics(data);
@@ -268,6 +290,140 @@ function render(data) {
   setView(prefs.view);
   els.lyrics.scrollTop = 0;
 }
+
+// ---------- right sidebar: cover, approve & save, timing ----------
+
+function renderSide(data) {
+  els.sideTitle.textContent = data.title;
+  els.sideArtist.textContent = `${data.artist} · ${LANGUAGE_LABEL[data.language ?? 'ru'] ?? ''}`;
+  els.approveBox.hidden = false;
+  els.syncBox.hidden = false;
+  els.syncState.textContent = data.synced
+    ? `Časování je k dispozici (${data.synced.filter((l) => l.text).length} řádků).`
+    : 'Tahle skladba zatím nemá časování.';
+  updateApproveState();
+}
+
+function savedEntryFor(data) {
+  if (!data) return null;
+  if (data.fromLibrary && data.id) return library.entries.find((e) => e.id === data.id) ?? { id: data.id };
+  return library.entries.find((e) => e.sourceUrl && e.sourceUrl === data.source?.url) ?? null;
+}
+
+function updateApproveState() {
+  const saved = savedEntryFor(current);
+  els.approve.classList.toggle('saved', Boolean(saved));
+  els.approve.querySelector('span').textContent = saved ? 'Schváleno a uloženo' : 'Schválit a uložit';
+  els.approveNote.textContent = saved
+    ? 'Tahle verze je v knihovně. Při dalším hledání se načte odtud.'
+    : 'Uloží tuhle verzi textu do knihovny. Příště se načte hned a bez hledání.';
+  els.unsave.hidden = !saved;
+  highlightLibrary(saved?.id);
+}
+
+els.approve.addEventListener('click', async () => {
+  if (!current || savedEntryFor(current)) return;
+  els.approve.disabled = true;
+  try {
+    const res = await fetch('/api/library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result: current, queries: lastQuery ? [lastQuery] : [] }),
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error || `HTTP ${res.status}`);
+    await loadLibrary();
+    toast('Uloženo do knihovny');
+  } catch (err) {
+    toast(`Uložení selhalo: ${err.message}`);
+  } finally {
+    els.approve.disabled = false;
+    updateApproveState();
+  }
+});
+
+els.unsave.addEventListener('click', async () => {
+  const saved = savedEntryFor(current);
+  if (saved) await removeFromLibrary(saved.id);
+});
+
+// ---------- left sidebar: library of approved lyrics ----------
+
+const library = { entries: [] };
+let lastQuery = null;
+
+async function loadLibrary() {
+  try {
+    library.entries = (await (await fetch('/api/library')).json()).entries ?? [];
+  } catch {
+    library.entries = [];
+  }
+  renderLibrary();
+  if (current) updateApproveState();
+}
+
+function renderLibrary() {
+  const q = els.libFilter.value.trim().toLowerCase();
+  const items = library.entries.filter((e) => !q || `${e.artist} ${e.title}`.toLowerCase().includes(q));
+  els.libCount.textContent = library.entries.length ? String(library.entries.length) : '';
+  els.libEmpty.hidden = library.entries.length > 0;
+
+  els.libList.replaceChildren(...items.map((e) => {
+    const li = el('li', { class: 'lib-item', dataset: { id: e.id }, title: `${e.title} — ${e.artist}` });
+    const thumb = e.art
+      ? el('img', { class: 'lib-thumb', src: `/api/art?u=${encodeURIComponent(e.art)}`, alt: '', loading: 'lazy' })
+      : el('div', { class: 'lib-thumb' }, '♪');
+    const text = el('div', { class: 'lib-text' });
+    const sub = el('div', { class: 'lib-sub' }, e.artist);
+    if (e.synced) sub.prepend(el('span', { class: 'synced-dot', title: 'Má časování' }, '● '));
+    text.append(el('div', { class: 'lib-title' }, e.title), sub);
+    const del = el('button', { class: 'lib-del', type: 'button', 'aria-label': `Odebrat ${e.title}`, title: 'Odebrat z knihovny' }, '×');
+    del.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      removeFromLibrary(e.id);
+    });
+    li.append(thumb, text, del);
+    li.addEventListener('click', () => openFromLibrary(e.id));
+    return li;
+  }));
+  highlightLibrary(savedEntryFor(current)?.id);
+}
+
+function highlightLibrary(id) {
+  els.libList.querySelectorAll('.lib-item').forEach((li) => li.classList.toggle('active', li.dataset.id === id));
+}
+
+async function openFromLibrary(id) {
+  try {
+    const res = await fetch(`/api/library/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    showMessage('');
+    els.artist.value = data.artist;
+    els.title.value = data.title;
+    render(data);
+  } catch (err) {
+    toast(`Nepodařilo se otevřít: ${err.message}`);
+  }
+}
+
+// Removing asks for a second click on the same button instead of a dialog.
+let pendingRemove = null;
+async function removeFromLibrary(id) {
+  if (pendingRemove !== id) {
+    pendingRemove = id;
+    toast('Klikni znovu pro odebrání z knihovny');
+    setTimeout(() => { if (pendingRemove === id) pendingRemove = null; }, 3000);
+    return;
+  }
+  pendingRemove = null;
+  await fetch(`/api/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (current?.fromLibrary && current.id === id) current.fromLibrary = false;
+  await loadLibrary();
+  toast('Odebráno z knihovny');
+}
+
+els.libFilter.addEventListener('input', renderLibrary);
 
 function renderWarnings(data) {
   const out = [];
@@ -300,7 +456,7 @@ function renderLyrics(data) {
     // Time-synced lines (LRCLIB). Uncertain marks are carried over by matching text.
     const uncertain = new Map(data.uncertain.map((u) => [normalize(u.text), u]));
     data.synced.forEach((line, i) => {
-      const node = lineNode(line.romanized, line.text);
+      const node = lineNode(line.romanized, isRomanized(data) ? line.text : null);
       node.dataset.i = String(i);
       const u = line.text && uncertain.get(normalize(line.text));
       if (u) markUncertain(node, u);
@@ -315,7 +471,7 @@ function renderLyrics(data) {
       if (si > 0) frag.append(el('div', { class: 'section-gap' }));
       if (section.name !== null) frag.append(el('div', { class: 'section-label' }, rSection.name));
       section.lines.forEach((line, li) => {
-        const node = lineNode(rSection.lines[li], line);
+        const node = lineNode(rSection.lines[li], isRomanized(data) ? line : null);
         const u = uncertain.get(`${si}:${li}`);
         if (u) markUncertain(node, u);
         frag.append(node);
@@ -366,6 +522,7 @@ function renderStats(data) {
   const src = data.source;
   const rows = [
     ['Zdroj textu', () => el('a', { href: src.url, target: '_blank', rel: 'noopener' }, PROVIDER_LABEL[src.provider] ?? src.provider)],
+    ['Jazyk', LANGUAGE_LABEL[data.language ?? 'ru'] ?? data.language],
     ['Důvěryhodnost', CONFIDENCE_LABEL[data.confidence]],
     ['Ověřeno proti', data.alternatives.length
       ? data.alternatives.map((a) => `${PROVIDER_LABEL[a.provider] ?? a.provider} (${Math.round(a.agreement * 100)} % shoda)`).join(', ')
@@ -399,6 +556,11 @@ function applyToggles() {
   els.toggleOriginal.setAttribute('aria-pressed', String(prefs.showOriginal));
   els.toggleSections.setAttribute('aria-pressed', String(prefs.showSections));
   const synced = Boolean(current?.synced);
+  const romanized = isRomanized(current);
+  els.toggleOriginal.disabled = !romanized;
+  els.toggleOriginal.title = romanized ? 'Zobrazit azbuku pod řádky' : 'Text není v azbuce, převod není potřeba';
+  els.segBtns.forEach((b) => { if (b.dataset.view === 'compare') b.disabled = !romanized; });
+  els.copy.textContent = romanized ? 'Kopírovat' : 'Kopírovat text';
   els.toggleSections.disabled = synced;
   els.toggleSections.title = synced
     ? 'Časovaný text nemá sekce (jsou v Porovnání)'
@@ -418,8 +580,10 @@ els.toggleSections.addEventListener('click', () => {
 });
 
 function setView(view) {
+  // Nothing to compare for lyrics that are not romanized; keep the saved preference.
+  if (view === 'compare' && !isRomanized(current)) view = 'lyrics';
+  else store.set('view', view);
   prefs.view = view;
-  store.set('view', view);
   els.segBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   els.lyrics.hidden = view !== 'lyrics';
   els.compare.hidden = view !== 'compare';
@@ -430,7 +594,8 @@ function setView(view) {
 }
 els.segBtns.forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
-els.copy.addEventListener('click', () => current && copyText(current.text.romanized, 'Latinka zkopírována'));
+els.copy.addEventListener('click', () => current
+  && copyText(current.text.romanized, isRomanized(current) ? 'Latinka zkopírována' : 'Text zkopírován'));
 els.copyOriginal.addEventListener('click', () => current && copyText(current.text.original, 'Originál zkopírován'));
 
 // ---------- time-synced playback ----------
@@ -666,6 +831,7 @@ if (last) {
 document.body.classList.add('no-player');
 applyToggles();
 setAuto(store.get('auto', false));
+loadLibrary();
 
 fetch('/api/status')
   .then((r) => r.json())
