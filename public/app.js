@@ -473,6 +473,8 @@ function lineNode(romanized, original, extraClass = '') {
   return p;
 }
 
+let syncedNodes = [];
+
 function renderLyrics(data) {
   const frag = document.createDocumentFragment();
   // Column captions, visible only in Duo.
@@ -512,6 +514,8 @@ function renderLyrics(data) {
   }
 
   els.lyricsInner.replaceChildren(frag);
+  // Karaoke works with lyric lines only (never headers or captions): index i = synced line i.
+  syncedNodes = data.synced ? [...els.lyricsInner.querySelectorAll('.line')] : [];
   els.lyrics.classList.toggle('synced', Boolean(data.synced));
   applyToggles();
 }
@@ -706,14 +710,14 @@ function update(t) {
   if (idx === playback.active) return;
   playback.active = idx;
 
-  const nodes = els.lyricsInner.children;
+  const nodes = syncedNodes;
   for (let i = 0; i < nodes.length; i++) nodes[i].classList.toggle('active', i === idx);
   followActive();
 }
 
 function followActive(instant = false) {
   if (!playback.follow || playback.active < 0) return;
-  const node = els.lyricsInner.children[playback.active];
+  const node = syncedNodes[playback.active];
   if (!node) return;
   const top = node.offsetTop - els.lyrics.clientHeight * 0.33;
   els.lyrics.scrollTo({ top: Math.max(0, top), behavior: instant ? 'auto' : 'smooth' });
