@@ -589,7 +589,9 @@ function applyToggles() {
   const synced = Boolean(current?.synced);
   const romanized = isRomanized(current);
   els.toggleOriginal.disabled = !romanized;
-  els.toggleOriginal.title = romanized ? 'Zobrazit azbuku pod řádky' : 'Text není v azbuce, převod není potřeba';
+  els.toggleOriginal.title = romanized
+    ? (prefs.showOriginal ? 'Zpět na latinku (azbuka se skryje)' : 'Velkým písmem azbuka, latinka malým pod ní')
+    : 'Text není v azbuce, převod není potřeba';
   els.segBtns.forEach((b) => { if (b.dataset.view === 'compare') b.disabled = !romanized; });
   els.copy.textContent = romanized ? 'Kopírovat' : 'Kopírovat text';
   els.toggleSections.disabled = synced;
@@ -625,8 +627,13 @@ function setView(view) {
 }
 els.segBtns.forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
-els.copy.addEventListener('click', () => current
-  && copyText(current.text.romanized, isRomanized(current) ? 'Latinka zkopírována' : 'Text zkopírován'));
+// Copies what is shown big: Latin by default, the Cyrillic original when "Azbuka" is on.
+els.copy.addEventListener('click', () => {
+  if (!current) return;
+  if (!isRomanized(current)) copyText(current.text.romanized, 'Text zkopírován');
+  else if (prefs.showOriginal) copyText(current.text.original, 'Azbuka zkopírována');
+  else copyText(current.text.romanized, 'Latinka zkopírována');
+});
 els.copyOriginal.addEventListener('click', () => current && copyText(current.text.original, 'Originál zkopírován'));
 
 // ---------- time-synced playback ----------

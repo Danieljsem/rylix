@@ -687,3 +687,24 @@ body.desktop .topbar :is(button, input, form, .zoom, a) { -webkit-app-region: no
 .recognize-btn.listening svg path { animation: eq 0.9s ease-in-out infinite; transform-origin: center; }
 .recognize-btn.listening svg path:nth-child(2n) { animation-delay: -0.45s; }
 @keyframes eq { 50% { transform: scaleY(0.4); } }
+
+/* ---------- "Azbuka" on: Cyrillic original big, Latin small underneath (swapped roles) ---------- */
+.lyrics.show-original .line { display: flex; flex-direction: column-reverse; align-items: flex-start; }
+.lyrics.show-original .line .orig {
+  display: block;
+  margin: 0;
+  font-size: 1em;
+  font-weight: 800;
+  letter-spacing: -0.028em;
+  opacity: 1;
+}
+.lyrics.show-original .line .r {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.46em;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  opacity: 0.62;
+}
+/* Lines without a Cyrillic original (instrumental gaps, other languages) keep the big text. */
+.lyrics.show-original .line:not(:has(.orig)) .r { font-size: 1em; font-weight: 800; opacity: 1; margin: 0; }
