@@ -1,3 +1,5 @@
+<p align="center"><img src="public/icons/icon-256.png" width="112" alt="Rylix logo"></p>
+
 # Rylix
 
 **Lyrics for what's playing on your PC, written in the Latin alphabet, line by line.**

@@ -1,25 +1,36 @@
+# Builds the app icons from build/icon.svg (Windows only):
+#   headless Edge renders the SVG at 512 px with a transparent background,
+#   System.Drawing scales it to public/icons/icon-<size>.png, make-ico.mjs packs build/icon.ico.
+# Run: npm run icons
+$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
-$src = [System.Drawing.Image]::FromFile("$root\build\icon-source.png")
-# Rounded square inside the artwork; everything outside it becomes transparent.
-$x = 100; $y = 108; $w = 1055; $h = 1034; $r = 230
-$masked = New-Object System.Drawing.Bitmap $w, $h
-$g = [System.Drawing.Graphics]::FromImage($masked)
-$g.SmoothingMode = 'AntiAlias'; $g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'
-$path = New-Object System.Drawing.Drawing2D.GraphicsPath
-$d = 2 * $r
-$path.AddArc(0, 0, $d, $d, 180, 90); $path.AddArc($w - $d, 0, $d, $d, 270, 90)
-$path.AddArc($w - $d, $h - $d, $d, $d, 0, 90); $path.AddArc(0, $h - $d, $d, $d, 90, 90); $path.CloseFigure()
-$brush = New-Object System.Drawing.TextureBrush($src, (New-Object System.Drawing.Rectangle $x, $y, $w, $h))
-$g.FillPath($brush, $path)
-$g.Dispose()
+$edge = @(
+  (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+  (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $edge) { throw 'Microsoft Edge not found' }
+
+$big = Join-Path $env:TEMP 'rylix-icon-512.png'
+$profile = Join-Path $env:TEMP 'rylix-icon-edge'
+$svgUrl = ([Uri](Join-Path $root 'build\icon.svg')).AbsoluteUri
+# Edge reports "N bytes written" on stderr, which PowerShell 5 would treat as an error.
+$ErrorActionPreference = 'Continue'
+& $edge --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$profile" `
+  --default-background-color=00000000 --window-size=512,512 --screenshot="$big" $svgUrl 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+for ($i = 0; $i -lt 40 -and -not (Test-Path $big); $i++) { Start-Sleep -Milliseconds 250 }
+
+$src = [System.Drawing.Image]::FromFile($big)
 foreach ($size in 16, 32, 48, 180, 256, 512) {
   $bmp = New-Object System.Drawing.Bitmap $size, $size
-  $gg = [System.Drawing.Graphics]::FromImage($bmp)
-  $gg.InterpolationMode = 'HighQualityBicubic'; $gg.SmoothingMode = 'AntiAlias'; $gg.PixelOffsetMode = 'HighQuality'
-  $gg.DrawImage($masked, 0, 0, $size, $size)
-  $gg.Dispose()
-  $bmp.Save("$root\public\icons\icon-$size.png", [System.Drawing.Imaging.ImageFormat]::Png)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.InterpolationMode = 'HighQualityBicubic'; $g.SmoothingMode = 'AntiAlias'; $g.PixelOffsetMode = 'HighQuality'
+  $g.DrawImage($src, 0, 0, $size, $size)
+  $g.Dispose()
+  $bmp.Save((Join-Path $root "public\icons\icon-$size.png"), [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
 }
-'done'
+$src.Dispose()
+Remove-Item $big, $profile -Recurse -Force -ErrorAction SilentlyContinue
+& node (Join-Path $root 'build\make-ico.mjs')

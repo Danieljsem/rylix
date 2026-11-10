@@ -24,7 +24,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
     "test": "node --test",
-    "app": "electron ."
+    "app": "electron .",
+    "icons": "powershell -NoProfile -ExecutionPolicy Bypass -File build/make-icons.ps1"
   },
   "dependencies": {
     "cheerio": "^1.2.0"
