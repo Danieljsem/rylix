@@ -1,4 +1,4 @@
-// Cyrillic → Latin for Russian, Ukrainian and Belarusian (see README, section 5).
+// Cyrillic → Latin for Russian, Ukrainian and Belarusian (see docs/design-notes.cs.md, section 5).
 // Pure function of a single line: never adds, removes or reorders characters
 // other than the letter-by-letter replacement described below.
 //

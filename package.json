@@ -2,8 +2,22 @@
   "name": "rylix",
   "version": "0.1.0",
   "description": "Rylix — lyrics, romanized line by line, synced with what plays on the PC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Danieljsem/rylix.git"
+  },
+  "keywords": [
+    "lyrics",
+    "romanization",
+    "transliteration",
+    "cyrillic",
+    "russian",
+    "ukrainian",
+    "electron",
+    "karaoke"
+  ],
   "type": "module",
-  "private": true,
   "engines": {
     "node": ">=20"
   },
